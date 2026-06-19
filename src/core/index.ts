@@ -1,3 +1,13 @@
 export { createDefaultProject } from "./model/projectFactory";
 export { projectSchema } from "./model/schema";
+export { renderLevel1Row } from "./render/renderLevel1";
+export { getControlCodeByByte, LEVEL_1_CONTROL_CODES } from "./standards/controlCodes";
+export { isPresentationLevel, PRESENTATION_LEVELS } from "./standards/levels";
+export { parsePageAddress } from "./standards/pageAddress";
+export { applyTemplate } from "./templates/applyTemplate";
+export { BUILT_IN_TEMPLATES, getBuiltInTemplate } from "./templates/builtInTemplates";
+export { validateProject } from "./validation/validateProject";
 export type * from "./model/types";
+export type * from "./render/types";
+export type { ParsedPageAddress } from "./standards/pageAddress";
+export type * from "./validation/types";

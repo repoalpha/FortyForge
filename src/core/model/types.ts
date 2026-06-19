@@ -41,6 +41,8 @@ export interface Project {
   services: Service[];
   templates: Template[];
   glyphSets: GlyphSet[];
+  contentSources: ContentSource[];
+  contentSnapshots: ContentSnapshot[];
   exportProfiles: ExportProfile[];
   transmissionProfiles: TransmissionProfile[];
 }
@@ -79,6 +81,7 @@ export interface Page {
   pageNumber: string;
   title: string;
   subpages: Subpage[];
+  contentBindings: ContentBinding[];
   metadata: PageMetadata;
   links: PageLink[];
 }
@@ -211,8 +214,134 @@ export interface Template {
   id: string;
   name: string;
   description: string;
+  category: TemplateCategory;
   targetPresentationLevel: PresentationLevel;
   rows: TeletextRow[];
+  regions: TemplateRegion[];
+}
+
+export type TemplateCategory =
+  | "blank"
+  | "index"
+  | "article"
+  | "weather"
+  | "status"
+  | "ticker"
+  | "art"
+  | "carousel";
+
+export interface TemplateRegion {
+  id: string;
+  label: string;
+  bounds: RegionBounds;
+  kind: "static" | "editable" | "generated" | "dynamic" | "ticker";
+  acceptedContentKinds: ContentSourceKind[];
+  lockedControlCodes: boolean;
+  overflowPolicy: OverflowPolicy;
+  fallbackText: string;
+}
+
+export interface RegionBounds {
+  startRow: number;
+  endRow: number;
+  startColumn: number;
+  endColumn: number;
+}
+
+export type ContentSourceKind =
+  | "rss"
+  | "atom"
+  | "weather"
+  | "json"
+  | "csv"
+  | "text"
+  | "manual"
+  | "web-extract";
+
+export interface ContentSource {
+  id: string;
+  kind: ContentSourceKind;
+  label: string;
+  uri: string;
+  enabled: boolean;
+  refreshPolicy: RefreshPolicy;
+  cachePolicy: CachePolicy;
+  fieldHints: Record<string, string>;
+}
+
+export interface ContentBinding {
+  id: string;
+  sourceId: string;
+  templateRegionId: string;
+  targetPageId: string;
+  targetSubpageId?: string;
+  transform: ContentTransform;
+  ticker?: TickerSettings;
+}
+
+export interface ContentTransform {
+  maxItems: number;
+  fields: ContentFieldMapping[];
+  sort: "source" | "newest-first" | "oldest-first" | "priority";
+  textCase: "preserve" | "upper" | "teletext-title";
+  controlStyle: "plain" | "headline-colour" | "region-default";
+  overflowPolicy: OverflowPolicy;
+}
+
+export interface ContentFieldMapping {
+  sourceField: string;
+  label?: string;
+  maxChars: number;
+  includeWhenEmpty: boolean;
+}
+
+export interface RefreshPolicy {
+  mode: "manual" | "on-export" | "interval" | "runtime";
+  intervalSeconds?: number;
+  staleAfterSeconds?: number;
+  retryCount: number;
+}
+
+export interface CachePolicy {
+  keepSnapshots: number;
+  allowStaleOnError: boolean;
+}
+
+export type OverflowPolicy =
+  | "clip"
+  | "wrap"
+  | "ellipsis"
+  | "add-subpage"
+  | "reject-update";
+
+export interface TickerSettings {
+  row: number;
+  startColumn: number;
+  endColumn: number;
+  mode: "snapshot" | "carousel-frames" | "runtime-scroll";
+  speedCellsPerStep: number;
+  separator: string;
+}
+
+export interface ContentSnapshot {
+  id: string;
+  sourceId: string;
+  capturedAt: string;
+  status: "ok" | "stale" | "error";
+  records: NormalizedContentRecord[];
+  errorMessage?: string;
+}
+
+export interface NormalizedContentRecord {
+  id: string;
+  title: string;
+  summary?: string;
+  body?: string;
+  url?: string;
+  publishedAt?: string;
+  updatedAt?: string;
+  priority?: number;
+  fields: Record<string, string | number | boolean | null>;
 }
 
 export interface ExportProfile {

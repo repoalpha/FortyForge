@@ -21,4 +21,13 @@ describe("createDefaultProject", () => {
       true
     );
   });
+
+  it("starts with empty dynamic content collections", () => {
+    const project = createDefaultProject();
+    const firstPage = project.services[0].pages[0];
+
+    expect(project.contentSources).toEqual([]);
+    expect(project.contentSnapshots).toEqual([]);
+    expect(firstPage.contentBindings).toEqual([]);
+  });
 });

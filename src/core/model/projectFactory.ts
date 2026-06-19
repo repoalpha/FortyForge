@@ -72,6 +72,7 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
                 }
               }
             ],
+            contentBindings: [],
             metadata: {
               description: "Default index page.",
               tags: [],
@@ -94,6 +95,8 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
     ],
     templates: [],
     glyphSets: [],
+    contentSources: [],
+    contentSnapshots: [],
     exportProfiles: [
       {
         id: "export-native",
