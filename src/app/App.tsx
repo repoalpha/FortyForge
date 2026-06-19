@@ -1,6 +1,14 @@
+import { useMemo } from "react";
+
+import { InspectorPanel } from "./components/InspectorPanel";
+import { PageNavigator } from "./components/PageNavigator";
+import { TeletextCanvas } from "./components/TeletextCanvas";
+import { TemplateLibrary } from "./components/TemplateLibrary";
+import { ValidationPanel } from "./components/ValidationPanel";
+import { createEditorViewModel } from "./state/editorStore";
+
 export function App() {
-  const columns = Array.from({ length: 40 }, (_, index) => index + 1);
-  const rows = Array.from({ length: 25 }, (_, index) => index);
+  const editor = useMemo(() => createEditorViewModel(), []);
 
   return (
     <main className="app-shell">
@@ -13,28 +21,16 @@ export function App() {
           </div>
         </div>
 
-        <section>
-          <h2>Pages</h2>
-          <button className="page-pill" type="button">
-            100.00 Index
-          </button>
-        </section>
+        <PageNavigator pages={editor.service.pages} service={editor.service} />
 
-        <section>
-          <h2>Templates</h2>
-          <div className="template-list">
-            <button type="button">Blank page</button>
-            <button type="button">Index page</button>
-            <button type="button">Pixel art canvas</button>
-          </div>
-        </section>
+        <TemplateLibrary templates={editor.templates} />
       </aside>
 
       <section className="workspace" aria-label="Teletext workspace">
         <header className="toolbar">
           <div>
-            <p className="eyebrow">Level 1 authoring</p>
-            <h2>Page 100</h2>
+            <p className="eyebrow">Level {editor.page.metadata.targetPresentationLevel} authoring</p>
+            <h2>Page {editor.page.pageNumber}</h2>
           </div>
           <div className="toolbar-actions">
             <button type="button">Preview Level 1</button>
@@ -42,45 +38,20 @@ export function App() {
           </div>
         </header>
 
-        <div className="canvas-frame">
-          <div className="column-ruler" aria-hidden="true">
-            {columns.map((column) => (
-              <span key={column}>{column % 10}</span>
-            ))}
-          </div>
-          <div className="teletext-grid" role="grid" aria-label="40 by 25 teletext grid">
-            {rows.map((row) =>
-              columns.map((column) => (
-                <button
-                  aria-label={`Row ${row}, column ${column}`}
-                  className={row === 0 ? "cell header-cell" : "cell"}
-                  key={`${row}-${column}`}
-                  type="button"
-                >
-                  {row === 0 && column <= 8 ? " " : ""}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
+        <TeletextCanvas rows={editor.subpage.rows} />
 
-        <footer className="status-panel">
-          <span>40 bytes per row</span>
-          <span>No validation issues</span>
-          <span>Packet preview ready after model wiring</span>
-        </footer>
+        <ValidationPanel
+          issues={editor.validationIssues}
+          packetPreview={editor.packetPreview}
+        />
       </section>
 
-      <aside className="inspector" aria-label="Inspector">
-        <section>
-          <h2>Inspector</h2>
-          <p>Select a cell to inspect character, control code, and byte effects.</p>
-        </section>
-        <section>
-          <h2>Validation</h2>
-          <p>No export-blocking issues.</p>
-        </section>
-      </aside>
+      <InspectorPanel
+        page={editor.page}
+        subpage={editor.subpage}
+        templates={editor.templates}
+        validationIssues={editor.validationIssues}
+      />
     </main>
   );
 }

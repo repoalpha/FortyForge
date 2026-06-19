@@ -102,9 +102,31 @@ section + section {
   width: 100%;
 }
 
+.page-list {
+  display: grid;
+  gap: 8px;
+}
+
 .template-list {
   display: grid;
   gap: 8px;
+}
+
+.template-list button {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.template-list small {
+  color: #7f8c96;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.section-note {
+  font-size: 12px;
+  margin-bottom: 10px;
 }
 
 .workspace {
@@ -170,7 +192,15 @@ section + section {
   aspect-ratio: 40 / 25;
   background: #000;
   border: 1px solid #202830;
+  display: grid;
+  grid-template-rows: repeat(25, minmax(0, 1fr));
   width: min(100%, 920px);
+}
+
+.teletext-row {
+  display: grid;
+  grid-template-columns: repeat(40, minmax(0, 1fr));
+  min-height: 0;
 }
 
 .cell {
@@ -204,4 +234,23 @@ section + section {
   gap: 12px;
   margin-top: 18px;
   padding-top: 12px;
+}
+
+.inspector-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.inspector-list div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.inspector-list dt {
+  color: #7f8c96;
+}
+
+.inspector-list dd {
+  margin: 0;
 }
