@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first working Pi-Teletext Editor desktop app with a standards-grounded data model, Level 1/1.5 authoring foundation, validation, preview, templates, and deterministic export/import foundations.
+**Goal:** Build the first working Pi-Teletext Editor desktop app with a standards-grounded data model, Level 1/1.5 authoring foundation, validation, preview, templates, dynamic content-region foundations, and deterministic export/import foundations.
 
-**Architecture:** Use a Tauri + TypeScript app with a UI-independent `src/core` domain package. The React UI consumes core commands, renderer, validation, templates, and import/export adapters. The app stores readable `.pttx` project files and exports compatibility formats.
+**Architecture:** Use a Tauri + TypeScript app with a UI-independent `src/core` domain package. The React UI consumes core commands, renderer, validation, templates, dynamic content source bindings, and import/export adapters. The app stores readable `.pttx` project files and exports compatibility formats.
 
 **Tech Stack:** Tauri, TypeScript, React, Vite, Vitest, Playwright, Rust shell commands for local file access.
 
@@ -18,6 +18,7 @@
 - Create `src/core/validation` for structured validation rules.
 - Create `src/core/render` for Level 1/1.5 render state.
 - Create `src/core/templates` for built-in templates.
+- Create `src/core/content-sources` for RSS/Atom, local data, weather-shaped records, template-region formatting, snapshots, and ticker frame generation.
 - Create `src/core/importers` and `src/core/exporters` for `.pttx`, TTI, and packet preview adapters.
 - Create `src/app` for React UI, app state, command execution, and desktop workflow.
 - Create `src-tauri` with minimal Tauri shell once browser-mode UI and core tests pass.
@@ -107,7 +108,7 @@ expect(project.services[0].pages[0].subpages[0].rows[1].cells).toHaveLength(40);
 
 - [ ] **Step 2: Define TypeScript interfaces**
 
-Implement the types from `docs/technical/pi-teletext-editor-technical-design.md`: `Project`, `Service`, `Page`, `Subpage`, `TeletextRow`, `Cell`, `ControlCode`, `EnhancementPacket`, `GlyphSet`, `Template`, `ExportProfile`, and `TransmissionProfile`.
+Implement the types from `docs/technical/pi-teletext-editor-technical-design.md`: `Project`, `Service`, `Page`, `Subpage`, `TeletextRow`, `Cell`, `ControlCode`, `EnhancementPacket`, `GlyphSet`, `Template`, `TemplateRegion`, `ContentSource`, `ContentBinding`, `ContentSnapshot`, `ExportProfile`, and `TransmissionProfile`.
 
 - [ ] **Step 3: Implement `createDefaultProject`**
 
@@ -235,11 +236,15 @@ Expected: render tests pass.
 
 Assert built-in templates include `blank-page`, `index-page`, `article-page`, `weather-page`, `status-display`, `subtitle-newsflash`, `pixel-art-canvas`, and `carousel-page`.
 
-- [ ] **Step 2: Implement template application**
+- [ ] **Step 2: Add template region metadata**
+
+Assert the article template includes a dynamic-capable content region, the weather template includes a weather region, and the subtitle/newsflash template includes a bottom ticker region.
+
+- [ ] **Step 3: Implement template application**
 
 `applyTemplate(project, serviceId, pageId, templateId)` should replace page rows with template rows and keep page address metadata stable.
 
-- [ ] **Step 3: Verify**
+- [ ] **Step 4: Verify**
 
 Run:
 
@@ -520,6 +525,73 @@ git status --short
 
 Expected: tests pass, build passes, and changed files are limited to the app/docs implementation.
 
+## Task 16: Add Dynamic Content Sources And Ticker Foundation
+
+**Files:**
+- Create: `src/core/content-sources/types.ts`
+- Create: `src/core/content-sources/parseFeed.ts`
+- Create: `src/core/content-sources/normalizeSource.ts`
+- Create: `src/core/content-sources/formatRegion.ts`
+- Create: `src/core/content-sources/applyContentBinding.ts`
+- Create: `src/core/content-sources/generateTickerFrames.ts`
+- Create: `src/core/content-sources/contentSources.test.ts`
+- Create: `src/app/components/ContentSourcePanel.tsx`
+- Create: `src/app/components/TemplateRegionEditor.tsx`
+- Modify: `src/core/model/types.ts`
+- Modify: `src/core/model/schema.ts`
+- Modify: `src/core/validation/validateProject.ts`
+- Modify: `src/core/templates/builtInTemplates.ts`
+- Modify: `src/app/components/InspectorPanel.tsx`
+- Modify: `src/core/index.ts`
+
+- [ ] **Step 1: Write dynamic content tests**
+
+Cover:
+
+```ts
+expect(parseFeed(sampleRss).records[0].title).toContain("Club");
+expect(formatRegion(records, region, transform).rows).toHaveLength(region.endRow - region.startRow + 1);
+expect(formatRegion(records, region, transform).rows.every(row => row.cells.length === 40)).toBe(true);
+expect(applyContentBinding(project, binding, snapshot).status).toBe("ok");
+expect(generateTickerFrames(["NEWS ONE", "NEWS TWO"], settings).length).toBeGreaterThan(1);
+```
+
+- [ ] **Step 2: Define source and binding model**
+
+Implement `ContentSource`, `ContentBinding`, `TemplateRegion`, `ContentSnapshot`, `RefreshPolicy`, `OverflowPolicy`, `TickerSettings`, and `NormalizedContentRecord`. The native schema should allow source definitions and small cached snapshots while keeping secrets out of `.pttx`.
+
+- [ ] **Step 3: Implement source normalization**
+
+Support RSS/Atom strings, local JSON arrays/objects, plain text lines, manual records, and a provider-neutral weather record shape. Do not add arbitrary unauthenticated web scraping in this task.
+
+- [ ] **Step 4: Implement region formatting**
+
+Map normalized records into 40-byte-safe rows inside a named template region. Support clip, wrap, ellipsis, add-subpage, and reject-update overflow policies. Generated content must preserve locked rows and authored control codes outside the region.
+
+- [ ] **Step 5: Implement snapshot and fallback behavior**
+
+Store last-known-good snapshots. If refresh fails or validation rejects an update, keep the previous valid snapshot and raise a warning with source ID, page, region, and reason.
+
+- [ ] **Step 6: Implement ticker foundation**
+
+Support bottom-row ticker regions with three output modes: static snapshot, generated carousel frames, and runtime-scroll manifest metadata. Static TTI/export output should be deterministic from the selected snapshot.
+
+- [ ] **Step 7: Add UI panels**
+
+`ContentSourcePanel` lists sources, refresh status, last capture time, and target pages. `TemplateRegionEditor` lets the user bind a source to a region, choose fields, choose overflow behavior, and preview byte-safe output.
+
+- [ ] **Step 8: Verify**
+
+Run:
+
+```powershell
+npm run test -- src/core/content-sources/contentSources.test.ts
+npm run test
+npm run build
+```
+
+Expected: dynamic content tests pass, all existing tests pass, and production build succeeds.
+
 ## Acceptance Checklist
 
 - [ ] Level 1 page can be created from a built-in template.
@@ -530,5 +602,8 @@ Expected: tests pass, build passes, and changed files are limited to the app/doc
 - [ ] TTI subset export/import round-trips for supported Level 1 content.
 - [ ] Packet preview emits MRAG plus 40-byte payload records.
 - [ ] Glyph model stores 12x10 and 6x5 assets.
+- [ ] RSS/Atom, local data, and weather-shaped content can be bound to named template regions.
+- [ ] Dynamic content refreshes apply only inside target regions and keep last-known-good content on refresh failure.
+- [ ] Bottom ticker can be previewed as a static row, carousel frames, and runtime-scroll metadata.
 - [ ] Tauri app opens locally and remains offline-capable.
 - [ ] Documentation describes v1 scope, staged enhanced modes, and low-bandwidth profile.

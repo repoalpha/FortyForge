@@ -13,12 +13,15 @@ Version 1 should be excellent at Level 1 and Level 1.5 authoring. Level 2.5 and 
 
 The native project format should be readable, versioned, and diffable. Compact binary streams are export artifacts, not the only source of truth. The editor should export to TTI and packet-oriented formats used by VBIT2, raspi-teletext, and vbit-py ecosystems.
 
+The editor should also support dynamic content sources. Authors should be able to bind RSS/Atom feeds, weather data, local files, simple JSON/CSV, and carefully configured web extracts into named template regions such as headline lists, club notices, weather panels, and bottom tickers. FortyForge designs and validates those bindings; `pi-teletext` or a companion update worker can refresh the source data and regenerate only the affected pages or rows.
+
 ## Goals
 
 - Make it simple to create attractive 40-column teletext pages without needing to memorize every control code.
 - Preserve byte-level correctness: every visible row and export path must respect teletext's 40-byte row nature.
 - Treat control characters as first-class editable objects with names, previews, and byte effects.
 - Support page templates, subpage carousels, page metadata, navigation links, Fastext/TOP-friendly workflows, and service-level organization.
+- Support dynamic content regions that can be updated from feeds, weather sources, topic-specific web data, local data files, and manual source snapshots.
 - Support classic mosaics and staged support for later 12x10 and 6x5 DRCS glyph workflows.
 - Provide deterministic import/export for practical toolchain compatibility.
 - Define a future low-bandwidth transmission profile suitable for constrained links such as LoRaWAN.
@@ -31,6 +34,7 @@ The native project format should be readable, versioned, and diffable. Compact b
 - A browser-only SaaS editor.
 - A full AI image conversion studio.
 - Analogue VBI waveform generation inside the editor.
+- A general-purpose web scraper or CMS. Dynamic sources must be explicit, bounded, cached, and formatted into teletext-safe regions.
 
 These remain planned integration or post-v1 work, but the v1 data model must not block them.
 
@@ -38,6 +42,7 @@ These remain planned integration or post-v1 work, but the v1 data model must not
 
 - Teletext hobbyists and artists creating pages for Raspberry Pi, VBIT, or archive workflows.
 - Makers building low-bandwidth information displays with a retro presentation layer.
+- Clubs, community groups, weather stations, and radio/ham organisations that want small automatically updated information services.
 - Service authors managing multiple pages, subpages, and templates.
 - Technical users who need packet-exact export, validation, and control-code visibility.
 - Future AI agents that need a well-specified file format and renderer to generate pages safely.
@@ -48,6 +53,7 @@ These remain planned integration or post-v1 work, but the v1 data model must not
 - Shell: Tauri desktop application.
 - UI technology: TypeScript frontend, reusable renderer/domain packages.
 - Storage: local project files with autosave and explicit export.
+- Dynamic content: opt-in refresh from configured sources, with cached snapshots for offline editing and deterministic export.
 - Visual identity: modern pro tool around an authentic retro teletext canvas.
 - Integration stance: standalone editor that interfaces with `pi-teletext`, VBIT2, raspi-teletext, vbit-py, and compatible file formats.
 
@@ -69,7 +75,7 @@ Primary reference: [ETSI EN 300 706](https://www.etsi.org/deliver/etsi_en/300700
 ### Adapt For Digital Authoring
 
 - Store authoring intent separately from packet export bytes where useful, as long as exports are deterministic.
-- Allow named layers, templates, annotations, validation state, source images, and AI provenance as project metadata.
+- Allow named layers, templates, dynamic content bindings, annotations, validation state, source images, and AI provenance as project metadata.
 - Offer simulated transmission profiles rather than assuming analogue broadcast timing.
 - Use Unicode labels in the UI while keeping explicit teletext character set mapping in the model.
 
@@ -109,6 +115,14 @@ Primary reference: [ETSI EN 300 706](https://www.etsi.org/deliver/etsi_en/300700
 2. User can create, duplicate, reorder, and delete subpages.
 3. Carousel settings define labels, default delay, transmission priority, and export inclusion.
 4. Page metadata captures description, tags, template origin, publication state, and compatibility targets.
+
+### Bind Dynamic Content To A Template Region
+
+1. User chooses a template with named regions such as `main-headlines`, `weather-summary`, `club-activities`, or `bottom-ticker`.
+2. User adds a content source: RSS/Atom feed, weather provider, local JSON/CSV/text file, manual snapshot, or configured web extract.
+3. User maps source fields into a region using teletext-aware rules for title, summary, timestamp, priority, truncation, wrapping, colour/control-code style, fallback text, and update interval.
+4. Editor previews the latest cached snapshot and shows row/byte usage before the binding can be exported.
+5. A runtime update worker or `pi-teletext` adapter refreshes the source later, re-applies the formatting rules, validates the output, and writes updated page rows, subpages, or low-bandwidth deltas.
 
 ### Preview And Validate
 
@@ -150,7 +164,18 @@ Primary reference: [ETSI EN 300 706](https://www.etsi.org/deliver/etsi_en/300700
 
 - Provide built-in templates for index, menu, article, weather, status display, subtitle/newsflash, pixel-art canvas, carousel page, and blank page.
 - Templates define layout regions, row locks, suggested palettes, validation rules, and export notes.
+- Layout regions can be static, editable, generated, or dynamic. Dynamic regions define row/column bounds, accepted content kinds, overflow policy, refresh hints, and fallback content.
 - Users can save a page or selected rows as a reusable template.
+
+### Dynamic Content Sources
+
+- Support v1 model and preview support for RSS/Atom, local JSON/CSV/text, manual snapshots, and provider-style weather data. Direct web extraction should be staged and allowed only through explicit selectors and source allowlists.
+- Store content source definitions separately from page layout. A source can feed several regions, and a page can combine static authored rows with multiple dynamic regions.
+- Content bindings map source fields into named template regions with formatter rules: max items, sort order, title/body selection, timestamp display, teletext character mapping, control-code style, wrapping, truncation, and fallback text.
+- Refresh policies define manual refresh, interval refresh, on-export refresh, runtime refresh, cache expiry, retry strategy, and whether stale content may remain on air.
+- The editor must keep cached content snapshots in the project or project sidecar so authors can work offline and exports remain deterministic.
+- Updates must validate before publication. A failed source refresh should keep the last valid snapshot and raise an actionable warning.
+- Bottom tickers are dynamic regions with a scrolling policy. Static exports can snapshot the ticker or generate carousel frames; digital/runtime exports can update the row over time.
 
 ### Glyph And Pixel-Art Foundation
 
@@ -163,6 +188,7 @@ Primary reference: [ETSI EN 300 706](https://www.etsi.org/deliver/etsi_en/300700
 - Validate every row for byte count and illegal cell states.
 - Validate characters against selected G0/G2/G3/DRCS availability.
 - Validate page numbers, magazine mapping, subpage IDs, and duplicate page conflicts.
+- Validate dynamic content bindings for region bounds, stale sources, missing fields, overflow policy, character mapping, and export profile compatibility.
 - Validate export profiles and report unsupported features before export.
 - Warnings must be actionable and link to the affected row/cell/page.
 
@@ -173,16 +199,18 @@ Primary reference: [ETSI EN 300 706](https://www.etsi.org/deliver/etsi_en/300700
 - T42/raw packet stream: deterministic packet stream output with parity/Hamming handled by encoder.
 - PNG/GIF: visual sharing and review.
 - Low-bandwidth profile: specified in v1 docs and exposed as disabled/readiness status until transport tooling exists.
+- Dynamic content profile: exports a refresh manifest for source bindings where the target runtime can safely refresh content without opening the editor.
 
 ## Non-Functional Requirements
 
-- Local-first operation with no network dependency.
+- Local-first operation with no network dependency for authoring. Network access is optional and only used for explicitly configured dynamic content refreshes.
 - Fast startup on modest Windows/Linux/macOS machines.
 - Smooth editing at 40x25 grid scale and service navigation across hundreds of pages.
 - Deterministic export output from the same project state.
 - Accessible keyboard-driven workflows for expert users.
 - Recoverable autosave and corruption-resistant project writes.
 - Clear separation between authoring model, rendering, validation, and export adapters.
+- Dynamic refreshes should be rate-limited, cached, sanitized, and resilient to offline or unavailable sources.
 
 ## UX Principles
 
@@ -213,6 +241,7 @@ The v1 PRD defines but does not ship real constrained-link transport.
 - It should include estimated byte size and transmission-time simulation.
 - It should support integrity checks and resumable update batches.
 - It should be suitable for LoRaWAN-like constraints where payload sizes are small and latency is acceptable.
+- It should be able to transmit only changed dynamic regions, ticker rows, or generated carousel subpages when source data changes.
 
 ## Success Metrics
 
@@ -221,6 +250,7 @@ The v1 PRD defines but does not ship real constrained-link transport.
 - TTI export round-trips through import with no loss for supported Level 1/1.5 features.
 - Validation catches row-length, character-set, and unsupported-mode issues before export.
 - The model can represent DRCS glyph assets and enhanced-mode metadata without schema redesign.
+- A user can bind an RSS/weather/local source to a template region, preview the formatted output, and export a deterministic snapshot.
 - The implementation plan enables separate AI agents to build domain, renderer, UI, and export layers without inventing product behavior.
 
 ## Acceptance Scenarios
@@ -231,6 +261,10 @@ The v1 PRD defines but does not ship real constrained-link transport.
 - Create a page set with page 100, page 101, and page 200 with two subpages, then export service metadata and page files.
 - Add a 12x10 and 6x5 glyph asset to a project and confirm the model validates dimensions and mode compatibility.
 - Generate a packet preview for a page that can be used by VBIT2/raspi-teletext-style workflows.
+- Bind an RSS feed to an article/news template region, refresh it, and confirm the formatted rows remain within the region and 40-byte constraints.
+- Bind a weather source to a weather template region and export a static snapshot that can be re-imported without losing authored layout.
+- Configure a ham club activity feed or local JSON file for a community page and keep the last valid snapshot when the source is offline.
+- Create a bottom-row ticker from feed headlines and preview both a static snapshot export and a generated carousel/runtime scrolling mode.
 
 ## Source References
 
