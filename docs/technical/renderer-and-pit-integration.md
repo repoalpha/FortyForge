@@ -77,8 +77,20 @@ Future PIT-backed implementation:
 FortyForge should update a Raspberry Pi or similar target without recompiling PIT. The editor should publish data, not code:
 
 - Export TTI/T42/raw packet files into a watched folder.
+- Download native project JSON and TTI snapshots directly from the editor for manual VBIT/PIT workflows.
 - Optionally push those files over SSH/SCP to an RPI target.
 - Later provide a live sync mode that writes atomic page updates and signals PIT to reload or lets PIT watch the folder.
 - Keep a future streaming profile for low-bandwidth links such as LoRaWAN.
 
 The key rule is that PIT consumes changing page data or packet streams. A display update must not require rebuilding the runtime.
+
+## Subpage And ETSI Backlog
+
+Subpages are now first-class editor objects: the page navigator can add a new fixed-width subpage and switch between subcodes such as `0000` and `0001` without losing row data. This is the correct foundation for ETSI-style carousel pages, but full standards behaviour still needs timing and transmission policy work.
+
+Remaining ETSI/PIT alignment items:
+
+- Subpage cycle timing, hold behaviour, and export selection for page sets.
+- Packet X/26 enhancement handling, Fastext/TOP links, and Level 1.5/2.5/3.5 compatibility views.
+- Parity/Hamming packet encoding for byte-accurate T42/raw outputs.
+- Real SAA5050/PIT glyph data in the studio renderer, with visual regression checks against PIT output.

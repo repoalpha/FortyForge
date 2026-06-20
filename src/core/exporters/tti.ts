@@ -19,12 +19,15 @@ function rowToText(row: TeletextRow): string {
 
 export interface TtiExportOptions {
   now?: Date;
+  serviceId?: string;
+  pageId?: string;
+  subpageId?: string;
 }
 
 export function exportTti(project: Project, options: TtiExportOptions = {}): string {
-  const service = project.services[0];
-  const page = service.pages[0];
-  const subpage = page.subpages[0];
+  const service = project.services.find((item) => item.id === options.serviceId) ?? project.services[0];
+  const page = service.pages.find((item) => item.id === options.pageId) ?? service.pages[0];
+  const subpage = page.subpages.find((item) => item.id === options.subpageId) ?? page.subpages[0];
   const subpageSuffix = subpage.subcode.slice(-2);
   const rows = composeExportRows(page, subpage, options.now);
   const lines = [

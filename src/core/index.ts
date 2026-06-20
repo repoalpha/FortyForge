@@ -1,6 +1,7 @@
 export { createDefaultProject } from "./model/projectFactory";
 export {
   applyEditorCommand,
+  addSubpageCommand,
   applyTemplateCommand,
   commitEditorCommand,
   createEditorHistory,

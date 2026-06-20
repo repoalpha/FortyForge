@@ -7,10 +7,12 @@ import { TeletextCanvas } from "./components/TeletextCanvas";
 import { TemplateLibrary } from "./components/TemplateLibrary";
 import { ValidationPanel } from "./components/ValidationPanel";
 import {
+  addSubpageCommand,
   applyTemplateCommand,
   composeExportRows,
   createEditorHistory,
   exportNativeProject,
+  exportTti,
   importNativeProject,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
@@ -43,13 +45,28 @@ function loadInitialHistory() {
   }
 }
 
+function downloadTextFile(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function App() {
   const [history, setHistory] = useState(loadInitialHistory);
   const [selection, setSelection] = useState<CellSelection | undefined>();
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("studio");
   const [clockNow, setClockNow] = useState(() => new Date());
   const [saveMessage, setSaveMessage] = useState("Not saved");
-  const editor = useMemo(() => createEditorViewModel(history.present), [history.present]);
+  const [activeSubpageId, setActiveSubpageId] = useState<string | undefined>();
+  const editor = useMemo(
+    () => createEditorViewModel(history.present, activeSubpageId),
+    [activeSubpageId, history.present]
+  );
   const displayRows = useMemo(
     () => composeExportRows(editor.page, editor.subpage, clockNow),
     [clockNow, editor.page, editor.subpage]
@@ -68,6 +85,19 @@ export function App() {
         applyTemplateCommand(editor.service.id, editor.page.id, templateId)
       )
     );
+  }
+
+  function commitSubpageAdd() {
+    const nextSubpageId = `subpage-${editor.page.subpages.length.toString().padStart(4, "0")}`;
+
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        addSubpageCommand(editor.service.id, editor.page.id)
+      )
+    );
+    setActiveSubpageId(nextSubpageId);
+    setSelection(undefined);
   }
 
   function commitText(value: string) {
@@ -144,6 +174,27 @@ export function App() {
     setSaveMessage(`Saved template locally ${new Date().toLocaleTimeString()}`);
   }
 
+  function downloadProject() {
+    downloadTextFile(
+      "fortyforge-project.pttx.json",
+      exportNativeProject(history.present),
+      "application/json"
+    );
+  }
+
+  function downloadTti() {
+    downloadTextFile(
+      `page-${editor.page.pageNumber}-subpage-${editor.subpage.subcode}.tti`,
+      exportTti(history.present, {
+        now: clockNow,
+        pageId: editor.page.id,
+        serviceId: editor.service.id,
+        subpageId: editor.subpage.id
+      }),
+      "text/plain"
+    );
+  }
+
   return (
     <main className={`app-shell ${layoutMode === "playout" ? "playout-shell" : "studio-shell"}`}>
       <aside className="sidebar" aria-label="Service navigator">
@@ -155,7 +206,16 @@ export function App() {
           </div>
         </div>
 
-        <PageNavigator pages={editor.service.pages} service={editor.service} />
+        <PageNavigator
+          activeSubpageId={editor.subpage.id}
+          onSubpageAdd={commitSubpageAdd}
+          onSubpageSelect={(subpageId) => {
+            setActiveSubpageId(subpageId);
+            setSelection(undefined);
+          }}
+          pages={editor.service.pages}
+          service={editor.service}
+        />
 
         <TemplateLibrary onTemplateApply={commitTemplate} templates={editor.templates} />
       </aside>
@@ -165,6 +225,7 @@ export function App() {
           <div>
             <p className="eyebrow">Level {editor.page.metadata.targetPresentationLevel} authoring</p>
             <h2>Page {editor.page.pageNumber}</h2>
+            <p>Subpage {editor.subpage.subcode}</p>
           </div>
           <div className="toolbar-actions">
             <div className="segmented-control" aria-label="Layout mode">
@@ -200,7 +261,8 @@ export function App() {
             <button type="button">Preview Level 1</button>
             <button onClick={saveTemplate} type="button">Save as template</button>
             <button onClick={saveProject} type="button">Save</button>
-            <button type="button">Export</button>
+            <button onClick={downloadProject} type="button">Download project</button>
+            <button onClick={downloadTti} type="button">Download TTI</button>
           </div>
         </header>
 

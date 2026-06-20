@@ -1,6 +1,6 @@
 import { applyTemplate } from "../templates/applyTemplate";
 import { getControlCodeByByte } from "../standards/controlCodes";
-import type { Cell, PageHeaderSettings, Project, TeletextColourRef } from "./types";
+import type { Cell, PageHeaderSettings, Project, Subpage, TeletextColourRef } from "./types";
 
 export interface CellLocation {
   serviceId: string;
@@ -63,6 +63,41 @@ function textCell(column: number, value: string): Cell {
       charset: "G0"
     },
     annotations: []
+  };
+}
+
+function emptyCell(column: number): Cell {
+  return {
+    column,
+    kind: "empty",
+    byte: 0x20,
+    annotations: []
+  };
+}
+
+function emptyRows() {
+  return Array.from({ length: 25 }, (_, rowIndex) => ({
+    index: rowIndex,
+    cells: Array.from({ length: 40 }, (_, column) => emptyCell(column)),
+    locked: false,
+    label: rowIndex === 0 ? "Header" : `Row ${rowIndex}`
+  }));
+}
+
+function makeSubpage(index: number): Subpage {
+  const subcode = index.toString().padStart(4, "0");
+
+  return {
+    id: `subpage-${subcode}`,
+    subcode,
+    rows: emptyRows(),
+    enhancementPackets: [],
+    glyphReferences: [],
+    carousel: {
+      enabled: false,
+      delaySeconds: 8,
+      priority: "normal"
+    }
   };
 }
 
@@ -240,6 +275,26 @@ export function saveCurrentPageAsTemplateCommand(
         rows: structuredClone(subpage.rows),
         regions: []
       });
+
+      return next;
+    }
+  };
+}
+
+export function addSubpageCommand(serviceId: string, pageId: string): EditorCommand {
+  return {
+    id: "add-subpage",
+    label: "Add subpage",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const service = next.services.find((item) => item.id === serviceId);
+      const page = service?.pages.find((item) => item.id === pageId);
+
+      if (!page) {
+        return project;
+      }
+
+      page.subpages.push(makeSubpage(page.subpages.length));
 
       return next;
     }

@@ -2,13 +2,14 @@ import "@testing-library/jest-dom/vitest";
 
 import { render, screen, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 
 describe("App", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it("renders the model-backed editor shell", () => {
@@ -172,6 +173,56 @@ describe("App", () => {
     })).toHaveTextContent("T");
   });
 
+  it("adds and switches between subpages", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.keyDown(grid, { key: "A" });
+    fireEvent.click(screen.getByRole("button", { name: "Add subpage" }));
+    fireEvent.click(screen.getByRole("button", { name: "0001" }));
+
+    expect(screen.getByText("Subpage 0001")).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    })).toHaveTextContent("");
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.keyDown(grid, { key: "B" });
+    fireEvent.click(screen.getByRole("button", { name: "0000" }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 65"
+    })).toHaveTextContent("A");
+  });
+
+  it("downloads native project and TTI exports", () => {
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+    const createObjectUrl = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:fortyforge-export");
+    const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Download project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download TTI" }));
+
+    expect(createObjectUrl).toHaveBeenCalledTimes(2);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:fortyforge-export");
+  });
 
   it("switches between studio and playout layouts", () => {
     render(<App />);

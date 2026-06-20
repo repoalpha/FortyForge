@@ -8,6 +8,7 @@ import {
   insertControlCodeCommand,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
+  addSubpageCommand,
   paintMosaicCommand,
   redo,
   setPageHeaderClockModeCommand,
@@ -144,6 +145,22 @@ describe("editor commands", () => {
 
     expect(next.services[0].pages[0].metadata.header.clockMode).toBe("original");
     expect(project.services[0].pages[0].metadata.header.clockMode).toBe("local");
+  });
+
+  it("adds fixed-width subpages to a page", () => {
+    const project = createDefaultProject();
+
+    const next = applyEditorCommand(
+      project,
+      addSubpageCommand("service-default", "page-100")
+    );
+    const subpages = next.services[0].pages[0].subpages;
+
+    expect(subpages).toHaveLength(2);
+    expect(subpages[1].subcode).toBe("0001");
+    expect(subpages[1].rows).toHaveLength(25);
+    expect(subpages[1].rows[1].cells).toHaveLength(40);
+    expect(project.services[0].pages[0].subpages).toHaveLength(1);
   });
 
   it("supports undo and redo", () => {
