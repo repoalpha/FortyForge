@@ -23,14 +23,17 @@ describe("TTI import/export subset", () => {
       };
     }
 
-    const tti = exportTti(project);
+    const tti = exportTti(project, { now: new Date(2026, 5, 20, 3, 4) });
     const imported = importTti(tti);
     const importedPage = imported.services[0].pages[0];
     const importedRows = importedPage.subpages[0].rows;
 
     expect(tti).toContain("PN,10000");
+    expect(tti).toContain("OL,0,P100 INDEX");
+    expect(tti).toContain("03:04");
     expect(tti.match(/^OL,/gm)).toHaveLength(25);
     expect(importedPage.pageNumber).toBe("100");
+    expect(importedPage.metadata.header.clockMode).toBe("original");
     expect(importedRows).toHaveLength(25);
     expect(importedRows[1].cells).toHaveLength(40);
     expect(

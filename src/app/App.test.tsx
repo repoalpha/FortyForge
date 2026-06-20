@@ -65,9 +65,9 @@ describe("App", () => {
     expect(screen.getByTestId("active-template-name")).toHaveTextContent("Weather page");
     expect(
       screen.getByRole("gridcell", {
-        name: "Row 0, column 1, byte 87"
+        name: "Row 2, column 1, byte 78"
       })
-    ).toHaveTextContent("W");
+    ).toHaveTextContent("N");
   });
 
   it("inserts control characters from the studio palette", () => {
@@ -96,6 +96,22 @@ describe("App", () => {
       name: "Row 1, column 2, byte 65"
     })).toHaveTextContent("A");
     expect(screen.getByText("Control palette")).toBeInTheDocument();
+  });
+
+  it("switches the X/0 header clock between local and original modes", () => {
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: "Local machine" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Original row" }));
+
+    expect(screen.getByRole("button", { name: "Original row" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
   });
 
   it("switches between studio and playout layouts", () => {

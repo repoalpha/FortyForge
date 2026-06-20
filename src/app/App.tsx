@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ControlPalette } from "./components/ControlPalette";
 import { InspectorPanel } from "./components/InspectorPanel";
@@ -8,8 +8,10 @@ import { TemplateLibrary } from "./components/TemplateLibrary";
 import { ValidationPanel } from "./components/ValidationPanel";
 import {
   applyTemplateCommand,
+  composeExportRows,
   insertControlCodeWithRowShiftCommand,
-  insertTextCommand
+  insertTextCommand,
+  setPageHeaderClockModeCommand
 } from "../core";
 import {
   commitEditorHistory,
@@ -26,7 +28,18 @@ export function App() {
   const [history, setHistory] = useState(() => createInitialEditorHistory());
   const [selection, setSelection] = useState<CellSelection | undefined>();
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("studio");
+  const [clockNow, setClockNow] = useState(() => new Date());
   const editor = useMemo(() => createEditorViewModel(history.present), [history.present]);
+  const displayRows = useMemo(
+    () => composeExportRows(editor.page, editor.subpage, clockNow),
+    [clockNow, editor.page, editor.subpage]
+  );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(new Date()), 30000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   function commitTemplate(templateId: string) {
     setHistory((currentHistory) =>
@@ -83,6 +96,15 @@ export function App() {
       rowIndex: selection.rowIndex,
       column: Math.min(selection.column + 1, 39)
     });
+  }
+
+  function commitHeaderClockMode(mode: "original" | "local") {
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        setPageHeaderClockModeCommand(editor.service.id, editor.page.id, mode)
+      )
+    );
   }
 
   return (
@@ -146,7 +168,7 @@ export function App() {
         <TeletextCanvas
           onCellSelect={setSelection}
           onTextInput={commitText}
-          rows={editor.subpage.rows}
+          rows={displayRows}
           selection={selection}
         />
 
@@ -166,6 +188,7 @@ export function App() {
         templates={editor.templates}
         validationIssues={editor.validationIssues}
         selection={selection}
+        onHeaderClockModeChange={commitHeaderClockMode}
       />
       <aside className="control-dock" aria-label="Control palette">
         <ControlPalette

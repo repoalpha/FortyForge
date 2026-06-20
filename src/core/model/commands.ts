@@ -1,6 +1,6 @@
 import { applyTemplate } from "../templates/applyTemplate";
 import { getControlCodeByByte } from "../standards/controlCodes";
-import type { Cell, Project, TeletextColourRef } from "./types";
+import type { Cell, PageHeaderSettings, Project, TeletextColourRef } from "./types";
 
 export interface CellLocation {
   serviceId: string;
@@ -208,6 +208,33 @@ export function applyTemplateCommand(
     id: "apply-template",
     label: "Apply template",
     apply: (project) => applyTemplate(project, serviceId, pageId, templateId)
+  };
+}
+
+export function setPageHeaderClockModeCommand(
+  serviceId: string,
+  pageId: string,
+  clockMode: PageHeaderSettings["clockMode"]
+): EditorCommand {
+  return {
+    id: "set-page-header-clock-mode",
+    label: "Set X/0 header clock mode",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const service = next.services.find((item) => item.id === serviceId);
+      const page = service?.pages.find((item) => item.id === pageId);
+
+      if (!page) {
+        return project;
+      }
+
+      page.metadata.header = {
+        ...page.metadata.header,
+        clockMode
+      };
+
+      return next;
+    }
   };
 }
 

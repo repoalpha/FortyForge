@@ -57,6 +57,8 @@ export function importTti(input: string): Project {
   const subpage = page.subpages[0];
   const importedRows = new Map<number, TeletextRow>();
 
+  page.metadata.header.clockMode = "original";
+
   for (const line of input.split(/\r?\n/)) {
     if (line.startsWith("DE,")) {
       page.title = line.slice(3);

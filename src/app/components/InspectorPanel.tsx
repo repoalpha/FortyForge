@@ -1,4 +1,4 @@
-import type { Page, Subpage, Template, ValidationIssue } from "../../core";
+import type { Page, PageHeaderSettings, Subpage, Template, ValidationIssue } from "../../core";
 import type { CellSelection } from "../state/editorStore";
 
 interface InspectorPanelProps {
@@ -7,6 +7,7 @@ interface InspectorPanelProps {
   templates: Template[];
   validationIssues: ValidationIssue[];
   selection?: CellSelection;
+  onHeaderClockModeChange(mode: PageHeaderSettings["clockMode"]): void;
 }
 
 export function InspectorPanel({
@@ -14,7 +15,8 @@ export function InspectorPanel({
   subpage,
   templates,
   validationIssues,
-  selection
+  selection,
+  onHeaderClockModeChange
 }: InspectorPanelProps) {
   const activeTemplate = templates.find(
     (template) => template.id === page.metadata.templateId
@@ -55,6 +57,34 @@ export function InspectorPanel({
             </dd>
           </div>
         </dl>
+      </section>
+
+      <section>
+        <h2>X/0 Header</h2>
+        <dl className="inspector-list">
+          <div>
+            <dt>Clock source</dt>
+            <dd>
+              {page.metadata.header.clockMode === "local" ? "Local machine" : "Original row"}
+            </dd>
+          </div>
+        </dl>
+        <div className="segmented-control" aria-label="X/0 header clock source">
+          <button
+            aria-pressed={page.metadata.header.clockMode === "local"}
+            onClick={() => onHeaderClockModeChange("local")}
+            type="button"
+          >
+            Local machine
+          </button>
+          <button
+            aria-pressed={page.metadata.header.clockMode === "original"}
+            onClick={() => onHeaderClockModeChange("original")}
+            type="button"
+          >
+            Original row
+          </button>
+        </div>
       </section>
 
       <section>

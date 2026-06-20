@@ -9,6 +9,7 @@ export {
   insertTextCommand,
   paintMosaicCommand,
   redo,
+  setPageHeaderClockModeCommand,
   setCellCommand,
   undo
 } from "./model/commands";
@@ -20,6 +21,7 @@ export { importNativeProject } from "./importers/nativeProject";
 export { importTti } from "./importers/tti";
 export { projectSchema } from "./model/schema";
 export { renderLevel1Row } from "./render/renderLevel1";
+export { composeExportRows, composePageHeaderRow } from "./render/pageHeader";
 export { getControlCodeByByte, LEVEL_1_CONTROL_CODES } from "./standards/controlCodes";
 export { isPresentationLevel, PRESENTATION_LEVELS } from "./standards/levels";
 export { parsePageAddress } from "./standards/pageAddress";

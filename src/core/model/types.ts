@@ -92,6 +92,11 @@ export interface PageMetadata {
   publicationState: "draft" | "ready" | "published";
   templateId?: string;
   targetPresentationLevel: PresentationLevel;
+  header: PageHeaderSettings;
+}
+
+export interface PageHeaderSettings {
+  clockMode: "original" | "local";
 }
 
 export interface PageLink {

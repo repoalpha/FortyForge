@@ -10,6 +10,7 @@ import {
   insertTextCommand,
   paintMosaicCommand,
   redo,
+  setPageHeaderClockModeCommand,
   setCellCommand,
   undo
 } from "./commands";
@@ -131,6 +132,18 @@ describe("editor commands", () => {
 
     expect(next.services[0].pages[0].metadata.templateId).toBe("index-page");
     expect(next.services[0].pages[0].subpages[0].rows[1].cells[0].character?.value).toBe("F");
+  });
+
+  it("updates the page header clock mode", () => {
+    const project = createDefaultProject();
+
+    const next = applyEditorCommand(
+      project,
+      setPageHeaderClockModeCommand("service-default", "page-100", "original")
+    );
+
+    expect(next.services[0].pages[0].metadata.header.clockMode).toBe("original");
+    expect(project.services[0].pages[0].metadata.header.clockMode).toBe("local");
   });
 
   it("supports undo and redo", () => {

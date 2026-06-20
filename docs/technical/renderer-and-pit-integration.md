@@ -20,6 +20,15 @@ Studio Mode should expose control characters as deliberate editable objects rath
 
 Control insertion must preserve the 40-byte row contract. The studio palette inserts the selected control byte at the cursor, shifts following cells one column to the right, and drops the final byte in that row. This gives authors a word-processor-style insert action while keeping the stored page immediately packet-safe. A later complementary delete/compact command should pull row content left when authors remove a control byte.
 
+## X/0 Header Policy
+
+Packet X/0 is a special page header row, not merely row zero artwork. It identifies the page, terminates the previous page in the stream, carries control/address metadata in the packet form, and normally contributes the visible top-row header text. FortyForge stores row 0 as editable/importable bytes, but also stores a page header policy:
+
+- `original`: preserve and export the authored/imported row 0 bytes exactly as the source page supplied them.
+- `local`: compose row 0 at render/export time from page metadata and the local machine clock, so a Raspberry Pi or other runtime can keep the displayed clock current without resending a whole page from the editor.
+
+Static exports such as TTI snapshot the composed local header at export time. Packet-stream and PIT integrations should carry the same policy forward so the runtime can regenerate X/0 locally when supported.
+
 ## Renderer Boundary
 
 The renderer boundary should use deterministic data:

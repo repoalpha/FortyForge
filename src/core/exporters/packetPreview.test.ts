@@ -22,4 +22,16 @@ describe("exportPacketPreview", () => {
     expect(rowOnePacket?.mragBytes).toHaveLength(2);
     expect(rowOnePacket?.payloadBytes).toHaveLength(40);
   });
+
+  it("uses composed local X/0 header bytes for packet preview", () => {
+    const project = createDefaultProject();
+    const preview = exportPacketPreview(project, {
+      now: new Date(2026, 5, 20, 3, 4)
+    });
+    const headerPacket = preview.packets.find((packet) => packet.row === 0);
+    const headerText = String.fromCharCode(...(headerPacket?.payloadBytes ?? []));
+
+    expect(headerText).toContain("P100");
+    expect(headerText.endsWith("03:04")).toBe(true);
+  });
 });

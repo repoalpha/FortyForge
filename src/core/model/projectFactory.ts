@@ -77,7 +77,10 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
               description: "Default index page.",
               tags: [],
               publicationState: "draft",
-              targetPresentationLevel: "1"
+              targetPresentationLevel: "1",
+              header: {
+                clockMode: "local"
+              }
             },
             links: []
           }
