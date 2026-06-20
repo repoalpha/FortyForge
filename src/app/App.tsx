@@ -180,7 +180,7 @@ export function App() {
     );
     setSelection({
       rowIndex: selection.rowIndex,
-      column: Math.min(selection.column + (colourIndex === 0 ? 1 : 2), 39)
+      column: Math.min(selection.column + (colourIndex === 0 ? 1 : 3), 39)
     });
   }
 

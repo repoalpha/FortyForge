@@ -1,5 +1,6 @@
 import { applyTemplate } from "../templates/applyTemplate";
 import { getControlCodeByByte } from "../standards/controlCodes";
+import { renderLevel1Row } from "../render/renderLevel1";
 import type { Cell, PageHeaderSettings, Project, Subpage, TeletextColourRef } from "./types";
 
 export interface CellLocation {
@@ -141,6 +142,10 @@ function shiftRowLeftFromColumn(rowCells: Cell[], column: number) {
   }));
 }
 
+function foregroundControlByteForMode(mode: "text" | "graphics", colourIndex: number) {
+  return mode === "graphics" ? 0x10 + colourIndex : colourIndex;
+}
+
 export function setCellCommand(
   serviceId: string,
   pageId: string,
@@ -235,10 +240,6 @@ export function insertBackgroundColourWithRowShiftCommand(
   column: number,
   colourIndex: number
 ): EditorCommand {
-  const insertedCells = colourIndex === 0
-    ? [controlCell(column, 0x1c)]
-    : [controlCell(column, colourIndex), controlCell(column + 1, 0x1d)];
-
   return {
     id: "insert-background-colour-row-shift",
     label: "Insert background colour",
@@ -249,6 +250,16 @@ export function insertBackgroundColourWithRowShiftCommand(
       if (!row || column < 0 || column >= row.cells.length) {
         return project;
       }
+
+      const currentState = renderLevel1Row(row).cells[column];
+      const insertedBytes = colourIndex === 0
+        ? [0x1c]
+        : [
+            foregroundControlByteForMode(currentState.mode, colourIndex),
+            0x1d,
+            foregroundControlByteForMode(currentState.mode, currentState.foreground.index)
+          ];
+      const insertedCells = insertedBytes.map((byte, offset) => controlCell(column + offset, byte));
 
       row.cells = shiftRowRightWithCells(row.cells, column, insertedCells);
 

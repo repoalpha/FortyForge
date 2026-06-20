@@ -231,8 +231,36 @@ describe("App", () => {
       name: "Row 1, column 2, byte 29"
     })).toHaveTextContent("");
     expect(screen.getByRole("gridcell", {
-      name: "Row 1, column 3, byte 65"
+      name: "Row 1, column 3, byte 7"
+    })).toHaveTextContent("");
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 4, byte 65"
     })).toHaveTextContent("A");
+  });
+
+  it("keeps text visible when typing after a background colour helper", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Background blue" }));
+    fireEvent.keyDown(grid, { key: "A" });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 4"
+    })).toHaveTextContent("");
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 29"
+    })).toHaveTextContent("");
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 3, byte 7"
+    })).toHaveTextContent("");
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 4, byte 65"
+    })).toHaveTextContent("A");
+    expect(screen.getByText("Row 1, column 5")).toBeInTheDocument();
   });
 
   it("paints mosaic graphics from the studio palette", () => {

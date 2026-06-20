@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createDefaultProject } from "./projectFactory";
+import { renderLevel1Row } from "../render/renderLevel1";
 import {
   applyEditorCommand,
   applyTemplateCommand,
@@ -250,9 +251,146 @@ describe("editor commands", () => {
         controlCode: expect.objectContaining({ mnemonic: "NEW_BACKGROUND" })
       })
     );
-    expect(cells[3].character?.value).toBe("B");
-    expect(cells[4].character?.value).toBe("C");
-    expect(cells[5].character?.value).toBe("D");
+    expect(cells[3]).toEqual(
+      expect.objectContaining({
+        column: 3,
+        kind: "control",
+        byte: 0x07,
+        controlCode: expect.objectContaining({ mnemonic: "ALPHA_WHITE" })
+      })
+    );
+    expect(cells[4].character?.value).toBe("B");
+    expect(cells[5].character?.value).toBe("C");
+    expect(cells[6].character?.value).toBe("D");
+  });
+
+  it("restores the active text foreground after inserting a non-black background", () => {
+    const project = createDefaultProject();
+    const withText = applyEditorCommand(
+      project,
+      insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 0, "A")
+    );
+
+    const next = applyEditorCommand(
+      withText,
+      insertBackgroundColourWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        0,
+        4
+      )
+    );
+    const cells = next.services[0].pages[0].subpages[0].rows[4].cells;
+    const rendered = renderLevel1Row(next.services[0].pages[0].subpages[0].rows[4]);
+
+    expect(cells[0]).toEqual(expect.objectContaining({ kind: "control", byte: 0x04 }));
+    expect(cells[1]).toEqual(expect.objectContaining({ kind: "control", byte: 0x1d }));
+    expect(cells[2]).toEqual(expect.objectContaining({ kind: "control", byte: 0x07 }));
+    expect(cells[3].character?.value).toBe("A");
+    expect(rendered.cells[3]).toEqual(
+      expect.objectContaining({
+        background: { palette: "level1", index: 4 },
+        foreground: { palette: "level1", index: 7 },
+        value: "A"
+      })
+    );
+  });
+
+  it("preserves graphics mode and foreground when inserting a background behind mosaics", () => {
+    const project = createDefaultProject();
+    const inGraphicsMode = applyEditorCommand(
+      project,
+      insertControlCodeWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        0,
+        0x12
+      )
+    );
+    const withMosaic = applyEditorCommand(
+      inGraphicsMode,
+      paintMosaicCommand("service-default", "page-100", "page-100-subpage-0000", 4, 1, 0x3f)
+    );
+
+    const next = applyEditorCommand(
+      withMosaic,
+      insertBackgroundColourWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        1,
+        4
+      )
+    );
+    const cells = next.services[0].pages[0].subpages[0].rows[4].cells;
+    const rendered = renderLevel1Row(next.services[0].pages[0].subpages[0].rows[4]);
+
+    expect(cells[1]).toEqual(expect.objectContaining({ kind: "control", byte: 0x14 }));
+    expect(cells[2]).toEqual(expect.objectContaining({ kind: "control", byte: 0x1d }));
+    expect(cells[3]).toEqual(expect.objectContaining({ kind: "control", byte: 0x12 }));
+    expect(rendered.cells[4]).toEqual(
+      expect.objectContaining({
+        mode: "graphics",
+        background: { palette: "level1", index: 4 },
+        foreground: { palette: "level1", index: 2 }
+      })
+    );
+  });
+
+  it("recomputes background and foreground when deleting generated background controls", () => {
+    const project = createDefaultProject();
+    const withBackground = applyEditorCommand(
+      project,
+      insertBackgroundColourWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        0,
+        4
+      )
+    );
+    const withText = applyEditorCommand(
+      withBackground,
+      insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 3, "A")
+    );
+
+    const withoutBlueForeground = applyEditorCommand(
+      withText,
+      deleteCellWithRowShiftCommand("service-default", "page-100", "page-100-subpage-0000", 4, 0)
+    );
+    const withoutNewBackground = applyEditorCommand(
+      withText,
+      deleteCellWithRowShiftCommand("service-default", "page-100", "page-100-subpage-0000", 4, 1)
+    );
+    const withoutForegroundRestore = applyEditorCommand(
+      withText,
+      deleteCellWithRowShiftCommand("service-default", "page-100", "page-100-subpage-0000", 4, 2)
+    );
+
+    expect(renderLevel1Row(withoutBlueForeground.services[0].pages[0].subpages[0].rows[4]).cells[2])
+      .toEqual(expect.objectContaining({
+        background: { palette: "level1", index: 7 },
+        foreground: { palette: "level1", index: 7 },
+        value: "A"
+      }));
+    expect(renderLevel1Row(withoutNewBackground.services[0].pages[0].subpages[0].rows[4]).cells[2])
+      .toEqual(expect.objectContaining({
+        background: { palette: "level1", index: 0 },
+        foreground: { palette: "level1", index: 7 },
+        value: "A"
+      }));
+    expect(renderLevel1Row(withoutForegroundRestore.services[0].pages[0].subpages[0].rows[4]).cells[2])
+      .toEqual(expect.objectContaining({
+        background: { palette: "level1", index: 4 },
+        foreground: { palette: "level1", index: 4 },
+        value: "A"
+      }));
   });
 
   it("applies templates through the command surface", () => {
