@@ -18,6 +18,8 @@ Playout Mode is for dual-screen or live use. The clean display should be detacha
 
 Studio Mode should expose control characters as deliberate editable objects rather than hidden formatting. The first implementation provides a manual control palette for Level 1 colour, graphics, background, and size control bytes. Colour and graphics controls should display literal Level 1 swatches so authors can see the intended foreground choice before insertion. Later studio helpers can auto-insert required controls at row or region boundaries when a user changes foreground/background intent, while still leaving the resulting bytes visible and editable.
 
+Control insertion must preserve the 40-byte row contract. The studio palette inserts the selected control byte at the cursor, shifts following cells one column to the right, and drops the final byte in that row. This gives authors a word-processor-style insert action while keeping the stored page immediately packet-safe. A later complementary delete/compact command should pull row content left when authors remove a control byte.
+
 ## Renderer Boundary
 
 The renderer boundary should use deterministic data:

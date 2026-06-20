@@ -8,7 +8,7 @@ import { TemplateLibrary } from "./components/TemplateLibrary";
 import { ValidationPanel } from "./components/ValidationPanel";
 import {
   applyTemplateCommand,
-  insertControlCodeCommand,
+  insertControlCodeWithRowShiftCommand,
   insertTextCommand
 } from "../core";
 import {
@@ -69,7 +69,7 @@ export function App() {
     setHistory((currentHistory) =>
       commitEditorHistory(
         currentHistory,
-        insertControlCodeCommand(
+        insertControlCodeWithRowShiftCommand(
           editor.service.id,
           editor.page.id,
           editor.subpage.id,

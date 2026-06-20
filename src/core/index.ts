@@ -5,6 +5,7 @@ export {
   commitEditorCommand,
   createEditorHistory,
   insertControlCodeCommand,
+  insertControlCodeWithRowShiftCommand,
   insertTextCommand,
   paintMosaicCommand,
   redo,

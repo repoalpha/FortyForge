@@ -81,11 +81,20 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("gridcell", {
       name: "Row 1, column 1, byte 32"
     }));
+    fireEvent.keyDown(screen.getByRole("grid", { name: "40 by 25 teletext grid" }), {
+      key: "A"
+    });
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 65"
+    }));
     fireEvent.click(screen.getByRole("button", { name: "Alpha red" }));
 
     expect(screen.getByRole("gridcell", {
       name: "Row 1, column 1, byte 1"
     })).toHaveTextContent("");
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 65"
+    })).toHaveTextContent("A");
     expect(screen.getByText("Control palette")).toBeInTheDocument();
   });
 

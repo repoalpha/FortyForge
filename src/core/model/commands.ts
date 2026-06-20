@@ -45,6 +45,14 @@ function updateCell(project: Project, location: CellLocation, cell: Cell): Proje
   return next;
 }
 
+function findMutableRow(project: Project, location: CellLocation) {
+  const service = project.services.find((item) => item.id === location.serviceId);
+  const page = service?.pages.find((item) => item.id === location.pageId);
+  const subpage = page?.subpages.find((item) => item.id === location.subpageId);
+
+  return subpage?.rows.find((item) => item.index === location.rowIndex);
+}
+
 function textCell(column: number, value: string): Cell {
   return {
     column,
@@ -54,6 +62,22 @@ function textCell(column: number, value: string): Cell {
       value,
       charset: "G0"
     },
+    annotations: []
+  };
+}
+
+function controlCell(column: number, byte: number): Cell {
+  const controlCode = getControlCodeByByte(byte);
+
+  if (!controlCode) {
+    throw new Error(`Unknown control code byte ${byte}`);
+  }
+
+  return {
+    column,
+    kind: "control",
+    byte,
+    controlCode,
     annotations: []
   };
 }
@@ -113,19 +137,42 @@ export function insertControlCodeCommand(
   column: number,
   byte: number
 ): EditorCommand {
-  const controlCode = getControlCodeByByte(byte);
+  return setCellCommand(serviceId, pageId, subpageId, rowIndex, column, controlCell(column, byte));
+}
 
-  if (!controlCode) {
-    throw new Error(`Unknown control code byte ${byte}`);
-  }
+export function insertControlCodeWithRowShiftCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number,
+  byte: number
+): EditorCommand {
+  const insertedCell = controlCell(column, byte);
 
-  return setCellCommand(serviceId, pageId, subpageId, rowIndex, column, {
-    column,
-    kind: "control",
-    byte,
-    controlCode,
-    annotations: []
-  });
+  return {
+    id: "insert-control-row-shift",
+    label: "Insert control code",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, { serviceId, pageId, subpageId, rowIndex, column });
+
+      if (!row || column < 0 || column >= row.cells.length) {
+        return project;
+      }
+
+      row.cells = [
+        ...row.cells.slice(0, column),
+        insertedCell,
+        ...row.cells.slice(column, -1)
+      ].map((cell, cellColumn) => ({
+        ...cell,
+        column: cellColumn
+      }));
+
+      return next;
+    }
+  };
 }
 
 export function paintMosaicCommand(

@@ -6,6 +6,7 @@ import {
   applyTemplateCommand,
   createEditorHistory,
   insertControlCodeCommand,
+  insertControlCodeWithRowShiftCommand,
   insertTextCommand,
   paintMosaicCommand,
   redo,
@@ -81,6 +82,44 @@ describe("editor commands", () => {
         mosaic: expect.objectContaining({ sixelMask: 0x3f })
       })
     );
+  });
+
+  it("inserts a control code by shifting the row right", () => {
+    const project = createDefaultProject();
+    const withText = applyEditorCommand(
+      project,
+      insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 0, "ABCD")
+    );
+
+    const next = applyEditorCommand(
+      withText,
+      insertControlCodeWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        1,
+        0x01
+      )
+    );
+    const cells = next.services[0].pages[0].subpages[0].rows[4].cells;
+
+    expect(next).not.toBe(withText);
+    expect(cells).toHaveLength(40);
+    expect(cells[0].character?.value).toBe("A");
+    expect(cells[1]).toEqual(
+      expect.objectContaining({
+        column: 1,
+        kind: "control",
+        byte: 0x01,
+        controlCode: expect.objectContaining({ mnemonic: "ALPHA_RED" })
+      })
+    );
+    expect(cells[2].character?.value).toBe("B");
+    expect(cells[3].character?.value).toBe("C");
+    expect(cells[4].character?.value).toBe("D");
+    expect(cells[39].column).toBe(39);
+    expect(withText.services[0].pages[0].subpages[0].rows[4].cells[1].character?.value).toBe("B");
   });
 
   it("applies templates through the command surface", () => {
