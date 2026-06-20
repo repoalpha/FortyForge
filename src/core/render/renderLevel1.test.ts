@@ -140,4 +140,22 @@ describe("renderLevel1Row", () => {
       })
     );
   });
+
+  it("uses current foreground as the new background colour", () => {
+    const row = rowWith([
+      controlCell(0, 0x01),
+      controlCell(1, 0x1d),
+      characterCell(2, "R")
+    ]);
+
+    const rendered = renderLevel1Row(row);
+
+    expect(rendered.cells[2]).toEqual(
+      expect.objectContaining({
+        background: { palette: "level1", index: 1 },
+        foreground: { palette: "level1", index: 1 },
+        value: "R"
+      })
+    );
+  });
 });

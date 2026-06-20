@@ -117,6 +117,17 @@ function controlCell(column: number, byte: number): Cell {
   };
 }
 
+function shiftRowRightWithCells(rowCells: Cell[], column: number, insertedCells: Cell[]) {
+  return [
+    ...rowCells.slice(0, column),
+    ...insertedCells,
+    ...rowCells.slice(column, -insertedCells.length)
+  ].map((cell, cellColumn) => ({
+    ...cell,
+    column: cellColumn
+  }));
+}
+
 export function setCellCommand(
   serviceId: string,
   pageId: string,
@@ -196,14 +207,37 @@ export function insertControlCodeWithRowShiftCommand(
         return project;
       }
 
-      row.cells = [
-        ...row.cells.slice(0, column),
-        insertedCell,
-        ...row.cells.slice(column, -1)
-      ].map((cell, cellColumn) => ({
-        ...cell,
-        column: cellColumn
-      }));
+      row.cells = shiftRowRightWithCells(row.cells, column, [insertedCell]);
+
+      return next;
+    }
+  };
+}
+
+export function insertBackgroundColourWithRowShiftCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number,
+  colourIndex: number
+): EditorCommand {
+  const insertedCells = colourIndex === 0
+    ? [controlCell(column, 0x1c)]
+    : [controlCell(column, colourIndex), controlCell(column + 1, 0x1d)];
+
+  return {
+    id: "insert-background-colour-row-shift",
+    label: "Insert background colour",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, { serviceId, pageId, subpageId, rowIndex, column });
+
+      if (!row || column < 0 || column >= row.cells.length) {
+        return project;
+      }
+
+      row.cells = shiftRowRightWithCells(row.cells, column, insertedCells);
 
       return next;
     }

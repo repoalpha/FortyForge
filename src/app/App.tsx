@@ -14,6 +14,7 @@ import {
   exportNativeProject,
   exportTti,
   importNativeProject,
+  insertBackgroundColourWithRowShiftCommand,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
   saveCurrentPageAsTemplateCommand,
@@ -145,6 +146,30 @@ export function App() {
     setSelection({
       rowIndex: selection.rowIndex,
       column: Math.min(selection.column + 1, 39)
+    });
+  }
+
+  function commitBackgroundColour(colourIndex: number) {
+    if (!selection) {
+      return;
+    }
+
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        insertBackgroundColourWithRowShiftCommand(
+          editor.service.id,
+          editor.page.id,
+          editor.subpage.id,
+          selection.rowIndex,
+          selection.column,
+          colourIndex
+        )
+      )
+    );
+    setSelection({
+      rowIndex: selection.rowIndex,
+      column: Math.min(selection.column + (colourIndex === 0 ? 1 : 2), 39)
     });
   }
 
@@ -295,6 +320,7 @@ export function App() {
       <aside className="control-dock" aria-label="Control palette">
         <ControlPalette
           disabled={!selection}
+          onBackgroundSelect={commitBackgroundColour}
           onControlSelect={commitControlCode}
         />
       </aside>

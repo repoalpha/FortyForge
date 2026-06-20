@@ -5,6 +5,7 @@ import {
   applyEditorCommand,
   applyTemplateCommand,
   createEditorHistory,
+  insertBackgroundColourWithRowShiftCommand,
   insertControlCodeCommand,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
@@ -122,6 +123,49 @@ describe("editor commands", () => {
     expect(cells[4].character?.value).toBe("D");
     expect(cells[39].column).toBe(39);
     expect(withText.services[0].pages[0].subpages[0].rows[4].cells[1].character?.value).toBe("B");
+  });
+
+  it("inserts a background colour sequence by shifting the row right", () => {
+    const project = createDefaultProject();
+    const withText = applyEditorCommand(
+      project,
+      insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 0, "ABCD")
+    );
+
+    const next = applyEditorCommand(
+      withText,
+      insertBackgroundColourWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        1,
+        1
+      )
+    );
+    const cells = next.services[0].pages[0].subpages[0].rows[4].cells;
+
+    expect(cells).toHaveLength(40);
+    expect(cells[0].character?.value).toBe("A");
+    expect(cells[1]).toEqual(
+      expect.objectContaining({
+        column: 1,
+        kind: "control",
+        byte: 0x01,
+        controlCode: expect.objectContaining({ mnemonic: "ALPHA_RED" })
+      })
+    );
+    expect(cells[2]).toEqual(
+      expect.objectContaining({
+        column: 2,
+        kind: "control",
+        byte: 0x1d,
+        controlCode: expect.objectContaining({ mnemonic: "NEW_BACKGROUND" })
+      })
+    );
+    expect(cells[3].character?.value).toBe("B");
+    expect(cells[4].character?.value).toBe("C");
+    expect(cells[5].character?.value).toBe("D");
   });
 
   it("applies templates through the command surface", () => {

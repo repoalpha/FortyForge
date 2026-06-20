@@ -114,6 +114,31 @@ describe("App", () => {
     expect(screen.getByText("Control palette")).toBeInTheDocument();
   });
 
+  it("inserts background colour control sequences from the studio palette", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.keyDown(screen.getByRole("grid", { name: "40 by 25 teletext grid" }), {
+      key: "A"
+    });
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 65"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Background red" }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 1"
+    })).toHaveTextContent("");
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 29"
+    })).toHaveTextContent("");
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 3, byte 65"
+    })).toHaveTextContent("A");
+  });
+
   it("switches the X/0 header clock between local and original modes", () => {
     render(<App />);
 
