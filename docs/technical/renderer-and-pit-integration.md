@@ -26,9 +26,12 @@ The renderer boundary should use deterministic data:
 Initial TypeScript implementation:
 
 - Draws a fixed 40 by 25 character grid into a canvas.
+- Draws preview text from a deterministic bitmap atlas rather than browser fonts.
 - Preserves hit testing by mapping pointer coordinates back to row and column.
 - Draws selection as an overlay, not as document layout.
 - Keeps DOM grid semantics available for accessibility and tests until a richer canvas accessibility layer exists.
+
+The bundled TypeScript bitmap atlas is a preview backend only. It gives crisp non-antialiased pixels and removes dependence on HTML/CSS text rendering, but it is not yet the authoritative Ceefax/PIT glyph source.
 
 Future PIT-backed implementation:
 

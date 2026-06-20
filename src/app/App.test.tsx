@@ -79,4 +79,11 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Playout" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Clean output mode for a second display or live monitor.")).toBeInTheDocument();
   });
+
+  it("keeps the preview on the bitmap renderer path", async () => {
+    const source = await import("./components/TeletextCanvas.tsx?raw");
+
+    expect(source.default).toContain("drawBitmapGlyph");
+    expect(source.default).not.toContain("fillText");
+  });
 });

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { renderLevel1Row } from "../../core";
 import type { Cell, TeletextColourRef, TeletextRow } from "../../core";
+import { drawBitmapGlyph } from "../preview/bitmapGlyphRenderer";
 import {
   createTeletextViewport,
   hitTestTeletextViewport
@@ -95,9 +96,6 @@ export function TeletextCanvas({
 
     context.fillStyle = "#000";
     context.fillRect(0, 0, viewport.width, viewport.height);
-    context.font = "16px 'Cascadia Mono', Consolas, monospace";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
 
     for (const row of rows) {
       const renderedRow = renderLevel1Row(row);
@@ -109,8 +107,14 @@ export function TeletextCanvas({
         context.fillRect(x, y, viewport.cellWidth, viewport.cellHeight);
 
         if (cell.visible && cell.value) {
-          context.fillStyle = colourToCss(cell.foreground);
-          context.fillText(cell.value, x + viewport.cellWidth / 2, y + viewport.cellHeight / 2);
+          drawBitmapGlyph(context, {
+            cellHeight: viewport.cellHeight,
+            cellWidth: viewport.cellWidth,
+            colour: colourToCss(cell.foreground),
+            value: cell.value,
+            x,
+            y
+          });
         }
       }
     }
