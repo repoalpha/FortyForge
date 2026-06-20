@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { renderLevel1Row } from "../../core";
 import type { Cell, TeletextColourRef, TeletextRow } from "../../core";
-import { drawBitmapGlyph } from "../preview/bitmapGlyphRenderer";
+import {
+  drawBitmapGlyph,
+  drawMosaicGlyph
+} from "../preview/bitmapGlyphRenderer";
 import {
   createTeletextViewport,
   hitTestTeletextViewport
@@ -106,7 +109,17 @@ export function TeletextCanvas({
         context.fillStyle = row.index === 0 ? "#001f5f" : colourToCss(cell.background);
         context.fillRect(x, y, viewport.cellWidth, viewport.cellHeight);
 
-        if (cell.visible && cell.value) {
+        if (cell.source.kind === "mosaic" && cell.source.mosaic) {
+          drawMosaicGlyph(context, {
+            cellHeight: viewport.cellHeight,
+            cellWidth: viewport.cellWidth,
+            colour: colourToCss(cell.foreground),
+            separated: cell.source.mosaic.separated || cell.separatedGraphics,
+            sixelMask: cell.source.mosaic.sixelMask,
+            x,
+            y
+          });
+        } else if (cell.visible && cell.value) {
           drawBitmapGlyph(context, {
             cellHeight: viewport.cellHeight,
             cellWidth: viewport.cellWidth,

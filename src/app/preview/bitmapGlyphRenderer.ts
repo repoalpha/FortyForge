@@ -14,6 +14,16 @@ export interface DrawBitmapGlyphOptions {
   y: number;
 }
 
+export interface DrawMosaicGlyphOptions {
+  cellHeight: number;
+  cellWidth: number;
+  colour: string;
+  separated: boolean;
+  sixelMask: number;
+  x: number;
+  y: number;
+}
+
 const FALLBACK_GLYPH: BitmapGlyph = [
   "11111",
   "10001",
@@ -399,7 +409,16 @@ const BITMAP_GLYPHS: Record<string, BitmapGlyph> = {
 };
 
 export function getBitmapGlyph(value: string): BitmapGlyph {
-  return BITMAP_GLYPHS[value.toUpperCase()] ?? FALLBACK_GLYPH;
+  return normalizeBitmapGlyph(BITMAP_GLYPHS[value.toUpperCase()] ?? FALLBACK_GLYPH);
+}
+
+function normalizeBitmapGlyph(glyph: BitmapGlyph): BitmapGlyph {
+  return [
+    "000000",
+    ...glyph.map((row) => `0${row}`),
+    "000000",
+    "000000"
+  ];
 }
 
 export function drawBitmapGlyph(context: BitmapDrawContext, options: DrawBitmapGlyphOptions): void {
@@ -422,5 +441,38 @@ export function drawBitmapGlyph(context: BitmapDrawContext, options: DrawBitmapG
         );
       }
     }
+  }
+}
+
+export function drawMosaicGlyph(context: BitmapDrawContext, options: DrawMosaicGlyphOptions): void {
+  const blockWidth = Math.floor(options.cellWidth / 2);
+  const blockHeights = [
+    Math.floor(options.cellHeight / 3),
+    Math.floor(options.cellHeight / 3) + (options.cellHeight % 3 > 0 ? 1 : 0),
+    Math.floor(options.cellHeight / 3) + (options.cellHeight % 3 > 1 ? 1 : 0)
+  ];
+  const blockY = [
+    options.y,
+    options.y + blockHeights[0],
+    options.y + blockHeights[0] + blockHeights[1]
+  ];
+  const inset = options.separated ? 1 : 0;
+
+  context.fillStyle = options.colour;
+
+  for (let sixel = 0; sixel < 6; sixel += 1) {
+    if ((options.sixelMask & (1 << sixel)) === 0) {
+      continue;
+    }
+
+    const blockColumn = sixel % 2;
+    const blockRow = Math.floor(sixel / 2);
+
+    context.fillRect(
+      options.x + blockColumn * blockWidth + inset,
+      blockY[blockRow] + inset,
+      blockWidth - inset * 2,
+      blockHeights[blockRow] - inset * 2
+    );
   }
 }

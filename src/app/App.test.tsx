@@ -84,6 +84,7 @@ describe("App", () => {
     const source = await import("./components/TeletextCanvas.tsx?raw");
 
     expect(source.default).toContain("drawBitmapGlyph");
+    expect(source.default).toContain("drawMosaicGlyph");
     expect(source.default).not.toContain("fillText");
   });
 });

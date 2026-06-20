@@ -26,7 +26,8 @@ The renderer boundary should use deterministic data:
 Initial TypeScript implementation:
 
 - Draws a fixed 40 by 25 character grid into a canvas.
-- Draws preview text from a deterministic bitmap atlas rather than browser fonts.
+- Draws preview text from a deterministic 6 by 10 normalized bitmap atlas rather than browser fonts.
+- Draws Level 1 mosaic cells as crisp 2 by 3 sixel blocks.
 - Preserves hit testing by mapping pointer coordinates back to row and column.
 - Draws selection as an overlay, not as document layout.
 - Keeps DOM grid semantics available for accessibility and tests until a richer canvas accessibility layer exists.
