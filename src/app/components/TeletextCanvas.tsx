@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import { renderLevel1Row } from "../../core";
-import type { Cell, TeletextColourRef, TeletextRow } from "../../core";
+import type { Cell, TeletextRow } from "../../core";
 import {
   drawBitmapGlyph,
   drawMosaicGlyph
 } from "../preview/bitmapGlyphRenderer";
+import { level1ColourToCss } from "../preview/teletextColours";
 import {
   createTeletextViewport,
   hitTestTeletextViewport
@@ -16,17 +17,6 @@ const COLUMN_COUNT = 40;
 const ROW_COUNT = 25;
 const CELL_WIDTH = 12;
 const CELL_HEIGHT = 20;
-
-const LEVEL_1_COLOURS = [
-  "#000000",
-  "#e00000",
-  "#00d000",
-  "#d0d000",
-  "#0000e0",
-  "#d000d0",
-  "#00d0d0",
-  "#ffffff"
-];
 
 interface TeletextCanvasProps {
   rows: TeletextRow[];
@@ -49,14 +39,6 @@ function cellText(cell: Cell): string {
   }
 
   return "";
-}
-
-function colourToCss(colour: TeletextColourRef): string {
-  if (colour.palette === "level1") {
-    return LEVEL_1_COLOURS[colour.index] ?? LEVEL_1_COLOURS[7];
-  }
-
-  return LEVEL_1_COLOURS[7];
 }
 
 export function TeletextCanvas({
@@ -106,14 +88,14 @@ export function TeletextCanvas({
       for (const cell of renderedRow.cells) {
         const x = cell.column * viewport.cellWidth;
         const y = row.index * viewport.cellHeight;
-        context.fillStyle = row.index === 0 ? "#001f5f" : colourToCss(cell.background);
+        context.fillStyle = row.index === 0 ? "#001f5f" : level1ColourToCss(cell.background);
         context.fillRect(x, y, viewport.cellWidth, viewport.cellHeight);
 
         if (cell.source.kind === "mosaic" && cell.source.mosaic) {
           drawMosaicGlyph(context, {
             cellHeight: viewport.cellHeight,
             cellWidth: viewport.cellWidth,
-            colour: colourToCss(cell.foreground),
+            colour: level1ColourToCss(cell.foreground),
             separated: cell.source.mosaic.separated || cell.separatedGraphics,
             sixelMask: cell.source.mosaic.sixelMask,
             x,
@@ -123,7 +105,7 @@ export function TeletextCanvas({
           drawBitmapGlyph(context, {
             cellHeight: viewport.cellHeight,
             cellWidth: viewport.cellWidth,
-            colour: colourToCss(cell.foreground),
+            colour: level1ColourToCss(cell.foreground),
             value: cell.value,
             x,
             y

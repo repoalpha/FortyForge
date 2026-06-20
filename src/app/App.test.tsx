@@ -74,7 +74,7 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByRole("button", { name: "Alpha red" })).toHaveStyle({
-      backgroundColor: "#e00000",
+      backgroundColor: "#ff0000",
       color: "#ffffff"
     });
 
