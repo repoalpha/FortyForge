@@ -71,13 +71,18 @@ Missing:
 
 ## PIT/PTI Reference Requirement
 
-No local PIT/pi-teletext checkout was found under `C:\Users\nzste\OneDrive\Documents` during this pass. FortyForge can implement ETSI-based behaviour without that folder, but exact renderer parity must wait until the PIT source or running instance is available.
+The PIT/pi-teletext checkout is available in WSL2 at `/home/nzste/projects/pi-teletext` with remote `https://github.com/repoalpha/pi-teletext.git`. This gives FortyForge a local source and test reference for renderer behaviour, though a running PIT/RPI target is still needed for live playout round trips.
 
-When PIT is available, compare:
+PIT findings to fold into the gap list:
+
+- Strict PIT rendering is documented around a canonical `480x500` framebuffer. FortyForge's current `640x500` Studio preview should become a selectable editor profile alongside a strict PIT comparison profile.
+- PIT generates `12x20` SAA5050 glyphs from Mullard ROM data with margin and half-dot rounding behaviour. FortyForge's current SAA5050 bitmap path is close in spirit but still needs pixel comparison.
+- PIT implements hold graphics, separated/contiguous mosaics, background state, and double-height top/bottom row handling in its core renderer/cell pipeline.
+
+Compare next:
 
 - X/0 row colour and local-clock behaviour.
 - SAA5050 glyph alignment.
 - Graphics-mode typed bytes and directly painted mosaic cells.
 - Double-height, double-width, and double-size rows.
 - TTI/T42 packet export reload behaviour.
-

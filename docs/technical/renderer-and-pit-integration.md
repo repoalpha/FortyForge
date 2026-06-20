@@ -40,7 +40,7 @@ The renderer boundary should use deterministic data:
 
 Initial TypeScript implementation:
 
-- Draws a fixed 40 by 25 character grid into a 640 by 500 canvas.
+- Draws a fixed 40 by 25 character grid into a 640 by 500 editor canvas for the current Studio preview.
 - Draws preview text from SAA5050 English bitmap data rather than browser fonts.
 - Draws Level 1 mosaic cells as crisp 2 by 3 sixel blocks.
 - Draws typed bytes in graphics mode as mosaic masks for a practical G1 graphics preview.
@@ -50,6 +50,11 @@ Initial TypeScript implementation:
 - Keeps DOM grid semantics available for accessibility and tests until a richer canvas accessibility layer exists.
 
 The bundled TypeScript SAA5050 table gives crisp non-antialiased pixels and removes dependence on HTML/CSS text rendering. It is adapted from the MIT-licensed `textmodes/font` Mullard SAA5050 data. The next renderer milestone is visual comparison against PIT output so FortyForge can match the runtime exactly.
+
+The local PIT checkout is available in WSL2 at `/home/nzste/projects/pi-teletext` with remote `https://github.com/repoalpha/pi-teletext.git`. Its strict renderer profile uses a canonical `480x500` framebuffer, so FortyForge's `640x500` Studio preview is an editor readability profile rather than exact playout parity. A later preview control should expose both:
+
+- `PIT strict`: `480x500`, matching the runtime framebuffer for pixel comparison.
+- `Studio large`: wider editor pixels for comfortable laptop editing.
 
 ### SAA5050 Font Source Candidates
 
@@ -74,6 +79,26 @@ Future PIT-backed implementation:
 - Compile the existing PIT rendering core to WebAssembly, or expose it through Tauri native commands.
 - Use the same renderer interface so editor tools do not care whether rendering comes from TypeScript, WASM, or native code.
 - Prefer byte-accurate page input over styled text input.
+
+## PIT Renderer Findings
+
+Confirmed local PIT reference: `/home/nzste/projects/pi-teletext`.
+
+Key files:
+
+- `src/core/src/renderer.cpp`: strict framebuffer render path, background fills, SAA5050 alpha drawing, mosaic drawing, and double-height top/bottom row rendering.
+- `src/core/src/glyph.cpp`: Mullard SAA5050 source conversion to `12x20` glyph output with margin and half-dot rounding behaviour.
+- `src/core/src/mosaic.cpp`: sixel mosaic rasterisation, including separated mosaic inset handling.
+- `src/core/src/cell.cpp`: Level 1 control-state interpretation, graphics mode, held graphics, and mosaic byte decoding.
+- `src/compiler/src/page_compiler.cpp`: generated row helpers and practical examples of graphics/background control placement.
+- `tests/test_framebuffer.cpp`, `tests/test_glyph.cpp`, `tests/test_mosaic.cpp`, `tests/test_teletext_state.cpp`: best starting point for parity-driven FortyForge tests.
+
+Practical implications for FortyForge:
+
+- Current text rendering is crisper than browser fonts, but it is not yet proven identical to PIT because PIT applies margin and half-dot shaping around the Mullard source data.
+- Current mosaic rendering covers direct sixel drawing and graphics-mode typed bytes, but still needs hold-graphics substitution and separated-mosaic parity tests.
+- Current double-height rendering still needs PIT-style top and bottom half handling across paired rows.
+- Current expanded editor preview is useful, but strict PIT comparison must happen at `480x500`.
 
 ## RPI/PIT Sync
 

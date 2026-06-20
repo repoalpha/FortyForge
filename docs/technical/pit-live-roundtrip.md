@@ -18,7 +18,13 @@ This is the safest first live workflow because it moves page data, not runtime c
 
 ## Required PIT Information
 
-To implement a real live connector, FortyForge needs the local PIT source path or a running PIT target with:
+Local source reference is now available:
+
+- WSL distro: `Ubuntu`
+- Source path: `/home/nzste/projects/pi-teletext`
+- Remote: `https://github.com/repoalpha/pi-teletext.git`
+
+To implement a real live connector, FortyForge still needs a running PIT target with:
 
 - Hostname and SSH user.
 - Watched page directory, if any.
@@ -54,5 +60,4 @@ To implement a real live connector, FortyForge needs the local PIT source path o
 
 ## Open Gap
 
-FortyForge currently has a push-plan helper and TTI import/export, but no live SSH UI and no T42/raw importer. Once the PIT folder or running target details are available, the next implementation step is a tested connector around the actual PIT file layout.
-
+FortyForge currently has a push-plan helper and TTI import/export, but no live SSH UI and no T42/raw importer. The PIT source folder is available for renderer and file-layout reference; the next live step is confirming the actual RPI/PIT watched directory and reload mechanism, then building a tested connector around that workflow.
