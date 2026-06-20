@@ -18,9 +18,12 @@ import {
 } from "./state/editorStore";
 import type { CellSelection } from "./state/editorStore";
 
+type LayoutMode = "studio" | "playout";
+
 export function App() {
   const [history, setHistory] = useState(() => createInitialEditorHistory());
   const [selection, setSelection] = useState<CellSelection | undefined>();
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("studio");
   const editor = useMemo(() => createEditorViewModel(history.present), [history.present]);
 
   function commitTemplate(templateId: string) {
@@ -57,7 +60,7 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${layoutMode === "playout" ? "playout-shell" : "studio-shell"}`}>
       <aside className="sidebar" aria-label="Service navigator">
         <div className="brand">
           <span className="brand-mark">40</span>
@@ -79,6 +82,22 @@ export function App() {
             <h2>Page {editor.page.pageNumber}</h2>
           </div>
           <div className="toolbar-actions">
+            <div className="segmented-control" aria-label="Layout mode">
+              <button
+                aria-pressed={layoutMode === "studio"}
+                onClick={() => setLayoutMode("studio")}
+                type="button"
+              >
+                Studio
+              </button>
+              <button
+                aria-pressed={layoutMode === "playout"}
+                onClick={() => setLayoutMode("playout")}
+                type="button"
+              >
+                Playout
+              </button>
+            </div>
             <button
               disabled={history.past.length === 0}
               onClick={() => setHistory(undoEditorHistory)}
@@ -104,6 +123,10 @@ export function App() {
           rows={editor.subpage.rows}
           selection={selection}
         />
+
+        {layoutMode === "playout" ? (
+          <p className="playout-note">Clean output mode for a second display or live monitor.</p>
+        ) : null}
 
         <ValidationPanel
           issues={editor.validationIssues}

@@ -1,7 +1,28 @@
-import type { Cell, TeletextRow } from "../../core";
+import { useEffect, useMemo, useRef } from "react";
+
+import { renderLevel1Row } from "../../core";
+import type { Cell, TeletextColourRef, TeletextRow } from "../../core";
+import {
+  createTeletextViewport,
+  hitTestTeletextViewport
+} from "../preview/teletextViewport";
 import type { CellSelection } from "../state/editorStore";
 
 const COLUMN_COUNT = 40;
+const ROW_COUNT = 25;
+const CELL_WIDTH = 12;
+const CELL_HEIGHT = 20;
+
+const LEVEL_1_COLOURS = [
+  "#000000",
+  "#e00000",
+  "#00d000",
+  "#d0d000",
+  "#0000e0",
+  "#d000d0",
+  "#00d0d0",
+  "#ffffff"
+];
 
 interface TeletextCanvasProps {
   rows: TeletextRow[];
@@ -26,13 +47,85 @@ function cellText(cell: Cell): string {
   return "";
 }
 
+function colourToCss(colour: TeletextColourRef): string {
+  if (colour.palette === "level1") {
+    return LEVEL_1_COLOURS[colour.index] ?? LEVEL_1_COLOURS[7];
+  }
+
+  return LEVEL_1_COLOURS[7];
+}
+
 export function TeletextCanvas({
   rows,
   selection,
   onCellSelect,
   onTextInput
 }: TeletextCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const columns = Array.from({ length: COLUMN_COUNT }, (_, index) => index + 1);
+  const viewport = useMemo(
+    () =>
+      createTeletextViewport({
+        columns: COLUMN_COUNT,
+        rows: ROW_COUNT,
+        cellWidth: CELL_WIDTH,
+        cellHeight: CELL_HEIGHT
+      }),
+    []
+  );
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+
+    if (!canvas || typeof globalThis.CanvasRenderingContext2D === "undefined") {
+      return;
+    }
+
+    let context: CanvasRenderingContext2D | null = null;
+
+    try {
+      context = canvas.getContext("2d");
+    } catch {
+      return;
+    }
+
+    if (!context) {
+      return;
+    }
+
+    context.fillStyle = "#000";
+    context.fillRect(0, 0, viewport.width, viewport.height);
+    context.font = "16px 'Cascadia Mono', Consolas, monospace";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    for (const row of rows) {
+      const renderedRow = renderLevel1Row(row);
+
+      for (const cell of renderedRow.cells) {
+        const x = cell.column * viewport.cellWidth;
+        const y = row.index * viewport.cellHeight;
+        context.fillStyle = row.index === 0 ? "#001f5f" : colourToCss(cell.background);
+        context.fillRect(x, y, viewport.cellWidth, viewport.cellHeight);
+
+        if (cell.visible && cell.value) {
+          context.fillStyle = colourToCss(cell.foreground);
+          context.fillText(cell.value, x + viewport.cellWidth / 2, y + viewport.cellHeight / 2);
+        }
+      }
+    }
+
+    if (selection) {
+      context.strokeStyle = "#f2d15c";
+      context.lineWidth = 2;
+      context.strokeRect(
+        selection.column * viewport.cellWidth + 1,
+        selection.rowIndex * viewport.cellHeight + 1,
+        viewport.cellWidth - 2,
+        viewport.cellHeight - 2
+      );
+    }
+  }, [rows, selection, viewport]);
 
   return (
     <div className="canvas-frame">
@@ -41,8 +134,26 @@ export function TeletextCanvas({
           <span key={column}>{column % 10}</span>
         ))}
       </div>
+      <canvas
+        aria-label="PIT framebuffer preview"
+        className="teletext-framebuffer"
+        height={viewport.height}
+        onClick={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const x = ((event.clientX - bounds.left) / bounds.width) * viewport.width;
+          const y = ((event.clientY - bounds.top) / bounds.height) * viewport.height;
+          const hit = hitTestTeletextViewport(viewport, x, y);
+
+          if (hit) {
+            onCellSelect(hit);
+          }
+        }}
+        ref={canvasRef}
+        role="img"
+        width={viewport.width}
+      />
       <div
-        className="teletext-grid"
+        className="teletext-grid teletext-access-grid"
         onKeyDown={(event) => {
           if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
             event.preventDefault();

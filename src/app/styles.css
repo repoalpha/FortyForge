@@ -26,6 +26,16 @@ button {
   min-height: 100vh;
 }
 
+.playout-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.playout-shell .sidebar,
+.playout-shell .inspector,
+.playout-shell .status-panel {
+  display: none;
+}
+
 .sidebar,
 .inspector {
   background: #151a1f;
@@ -157,6 +167,23 @@ section + section {
   gap: 10px;
 }
 
+.segmented-control {
+  background: #101214;
+  border: 1px solid #344350;
+  border-radius: 7px;
+  display: flex;
+  padding: 2px;
+}
+
+.segmented-control button {
+  border-color: transparent;
+}
+
+.segmented-control button[aria-pressed="true"] {
+  background: #f2d15c;
+  color: #101214;
+}
+
 .eyebrow {
   color: #f2d15c;
   font-size: 12px;
@@ -172,6 +199,15 @@ section + section {
   border-radius: 8px;
   box-shadow: 0 18px 50px rgb(0 0 0 / 28%);
   padding: 16px;
+}
+
+.teletext-framebuffer {
+  aspect-ratio: 40 / 25;
+  background: #000;
+  border: 1px solid #202830;
+  display: block;
+  image-rendering: pixelated;
+  width: min(100%, 920px);
 }
 
 .column-ruler,
@@ -195,6 +231,20 @@ section + section {
   display: grid;
   grid-template-rows: repeat(25, minmax(0, 1fr));
   width: min(100%, 920px);
+}
+
+.teletext-access-grid {
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.playout-note {
+  color: #f2d15c;
+  font-size: 13px;
+  margin-top: 12px;
 }
 
 .teletext-row {

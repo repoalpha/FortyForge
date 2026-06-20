@@ -20,6 +20,9 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Blank page" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Weather page" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Subtitle newsflash" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "PIT framebuffer preview" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Studio" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Playout" })).toHaveAttribute("aria-pressed", "false");
 
     expect(screen.getByText("0 validation issues")).toBeInTheDocument();
     expect(screen.getByText("25 packet preview records")).toBeInTheDocument();
@@ -65,5 +68,15 @@ describe("App", () => {
         name: "Row 0, column 1, byte 87"
       })
     ).toHaveTextContent("W");
+  });
+
+  it("switches between studio and playout layouts", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Playout" }));
+
+    expect(screen.getByRole("button", { name: "Studio" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Playout" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Clean output mode for a second display or live monitor.")).toBeInTheDocument();
   });
 });
