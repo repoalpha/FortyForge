@@ -65,6 +65,25 @@ describe("bitmap glyph renderer", () => {
     expect(context.rects).toHaveLength(16);
   });
 
+  it("stretches SAA5050 glyph pixels vertically in double-height cells", () => {
+    const context = new RecordingContext();
+
+    drawBitmapGlyph(context, {
+      cellHeight: 40,
+      cellWidth: 12,
+      colour: "#ffffff",
+      value: "A",
+      x: 0,
+      y: 0
+    });
+
+    expect(context.rects.slice(0, 3)).toEqual([
+      { fillStyle: "#ffffff", height: 4, width: 2, x: 4, y: 4 },
+      { fillStyle: "#ffffff", height: 4, width: 2, x: 2, y: 8 },
+      { fillStyle: "#ffffff", height: 4, width: 2, x: 6, y: 8 }
+    ]);
+  });
+
   it("includes the SAA5050 English pound glyph", () => {
     expect(getBitmapGlyph("£")).toEqual([
       "000000",

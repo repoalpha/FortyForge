@@ -426,8 +426,8 @@ function normalizeBitmapGlyph(glyph: BitmapGlyph): BitmapGlyph {
 
 export function drawBitmapGlyph(context: BitmapDrawContext, options: DrawBitmapGlyphOptions): void {
   const glyph = getBitmapGlyph(options.value);
-  const pixelWidth = 2;
-  const pixelHeight = 2;
+  const pixelWidth = Math.max(1, Math.floor(options.cellWidth / glyph[0].length));
+  const pixelHeight = Math.max(1, Math.floor(options.cellHeight / glyph.length));
   const xOffset = Math.floor((options.cellWidth - glyph[0].length * pixelWidth) / 2);
   const yOffset = Math.floor((options.cellHeight - glyph.length * pixelHeight) / 2);
 

@@ -41,6 +41,12 @@ function cellText(cell: Cell): string {
   return "";
 }
 
+function renderedCellHeight(doubleHeight: boolean, rowIndex: number, viewportHeight: number) {
+  const y = rowIndex * CELL_HEIGHT;
+
+  return doubleHeight ? Math.min(CELL_HEIGHT * 2, viewportHeight - y) : CELL_HEIGHT;
+}
+
 export function TeletextCanvas({
   rows,
   selection,
@@ -83,17 +89,26 @@ export function TeletextCanvas({
     context.fillStyle = "#000";
     context.fillRect(0, 0, viewport.width, viewport.height);
 
-    for (const row of rows) {
-      const renderedRow = renderLevel1Row(row);
+    const renderedRows = rows.map((row) => ({
+      row,
+      renderedRow: renderLevel1Row(row)
+    }));
 
+    for (const { row, renderedRow } of renderedRows) {
       for (const cell of renderedRow.cells) {
         const x = cell.column * viewport.cellWidth;
         const y = row.index * viewport.cellHeight;
-        const cellHeight = cell.doubleHeight
-          ? Math.min(viewport.cellHeight * 2, viewport.height - y)
-          : viewport.cellHeight;
+        const cellHeight = renderedCellHeight(cell.doubleHeight, row.index, viewport.height);
         context.fillStyle = row.index === 0 ? "#001f5f" : level1ColourToCss(cell.background);
         context.fillRect(x, y, viewport.cellWidth, cellHeight);
+      }
+    }
+
+    for (const { row, renderedRow } of renderedRows) {
+      for (const cell of renderedRow.cells) {
+        const x = cell.column * viewport.cellWidth;
+        const y = row.index * viewport.cellHeight;
+        const cellHeight = renderedCellHeight(cell.doubleHeight, row.index, viewport.height);
 
         if (cell.source.kind === "mosaic" && cell.source.mosaic) {
           drawMosaicGlyph(context, {
