@@ -5,6 +5,7 @@ import {
   applyEditorCommand,
   applyTemplateCommand,
   createEditorHistory,
+  editMosaicSixelCommand,
   insertBackgroundColourWithRowShiftCommand,
   insertControlCodeCommand,
   insertControlCodeWithRowShiftCommand,
@@ -85,6 +86,48 @@ describe("editor commands", () => {
         mosaic: expect.objectContaining({ sixelMask: 0x3f })
       })
     );
+  });
+
+  it("sets, clears, and toggles individual mosaic sixels", () => {
+    const project = createDefaultProject();
+    const location = [
+      "service-default",
+      "page-100",
+      "page-100-subpage-0000",
+      5,
+      4
+    ] as const;
+
+    const withTopLeft = applyEditorCommand(
+      project,
+      editMosaicSixelCommand(...location, 0, "set")
+    );
+
+    expect(withTopLeft.services[0].pages[0].subpages[0].rows[5].cells[4]).toEqual(
+      expect.objectContaining({
+        kind: "mosaic",
+        byte: 0x41,
+        mosaic: expect.objectContaining({ sixelMask: 0b000001 })
+      })
+    );
+
+    const withBottomRight = applyEditorCommand(
+      withTopLeft,
+      editMosaicSixelCommand(...location, 5, "toggle")
+    );
+
+    expect(withBottomRight.services[0].pages[0].subpages[0].rows[5].cells[4].mosaic?.sixelMask)
+      .toBe(0b100001);
+
+    const clearedTopLeft = applyEditorCommand(
+      withBottomRight,
+      editMosaicSixelCommand(...location, 0, "clear")
+    );
+
+    expect(clearedTopLeft.services[0].pages[0].subpages[0].rows[5].cells[4].mosaic?.sixelMask)
+      .toBe(0b100000);
+    expect(clearedTopLeft.services[0].pages[0].subpages[0].rows[5].cells[4].byte)
+      .toBe(0x60);
   });
 
   it("inserts a control code by shifting the row right", () => {

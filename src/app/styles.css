@@ -22,7 +22,7 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 260px minmax(620px, 1fr) 300px 260px;
+  grid-template-columns: 260px minmax(720px, 1fr) 320px;
   min-height: 100vh;
 }
 
@@ -32,14 +32,14 @@ button {
 
 .playout-shell .sidebar,
 .playout-shell .inspector,
-.playout-shell .control-dock,
+.playout-shell .tool-dock,
 .playout-shell .status-panel {
   display: none;
 }
 
 .sidebar,
 .inspector,
-.control-dock {
+.tool-dock {
   background: #151a1f;
   border-color: #27313a;
   border-style: solid;
@@ -54,8 +54,9 @@ button {
   border-width: 0 0 0 1px;
 }
 
-.control-dock {
+.tool-dock {
   border-width: 0 0 0 1px;
+  overflow-y: auto;
 }
 
 .brand {
@@ -200,6 +201,74 @@ section + section {
   cursor: not-allowed;
   filter: saturate(0.7);
   opacity: 0.72;
+}
+
+.tool-mode-control {
+  margin-bottom: 10px;
+}
+
+.tool-mode-control button {
+  flex: 1;
+}
+
+.mosaic-pattern-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mosaic-pattern-grid button {
+  align-items: center;
+  background: #202830;
+  border: 1px solid #344350;
+  border-radius: 6px;
+  color: #eef2f4;
+  cursor: pointer;
+  display: grid;
+  font-size: 12px;
+  gap: 6px;
+  justify-items: center;
+  min-height: 58px;
+  padding: 7px;
+}
+
+.mosaic-pattern-grid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.mosaic-pattern-icon {
+  border: 1px solid #5f6b75;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  height: 24px;
+  padding: 1px;
+  width: 20px;
+}
+
+.mosaic-pattern-icon span {
+  background: #060606;
+}
+
+.mosaic-pattern-icon .sixel-on {
+  background: #f2d15c;
+}
+
+.future-tool-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.future-tool-list span {
+  background: #202830;
+  border: 1px solid #344350;
+  border-radius: 999px;
+  color: #aab8c2;
+  font-size: 11px;
+  padding: 5px 7px;
 }
 
 .section-note {

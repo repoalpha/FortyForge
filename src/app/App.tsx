@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { ControlPalette } from "./components/ControlPalette";
-import { InspectorPanel } from "./components/InspectorPanel";
 import { PageNavigator } from "./components/PageNavigator";
 import { TeletextCanvas } from "./components/TeletextCanvas";
 import { TemplateLibrary } from "./components/TemplateLibrary";
+import { ToolDock } from "./components/ToolDock";
 import { ValidationPanel } from "./components/ValidationPanel";
 import {
   addSubpageCommand,
   applyTemplateCommand,
   composeExportRows,
   createEditorHistory,
+  editMosaicSixelCommand,
   exportNativeProject,
   exportTti,
   importNativeProject,
@@ -29,6 +29,7 @@ import {
   undoEditorHistory
 } from "./state/editorStore";
 import type { CellSelection } from "./state/editorStore";
+import type { EditorTool } from "./components/TeletextCanvas";
 
 type LayoutMode = "studio" | "playout";
 const LOCAL_PROJECT_KEY = "fortyforge.currentProject";
@@ -62,6 +63,7 @@ export function App() {
   const [history, setHistory] = useState(loadInitialHistory);
   const [selection, setSelection] = useState<CellSelection | undefined>();
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("studio");
+  const [activeTool, setActiveTool] = useState<EditorTool>("text");
   const [clockNow, setClockNow] = useState(() => new Date());
   const [saveMessage, setSaveMessage] = useState("Not saved");
   const [activeSubpageId, setActiveSubpageId] = useState<string | undefined>();
@@ -198,6 +200,29 @@ export function App() {
     });
   }
 
+  function commitMosaicSixelEdit(
+    rowIndex: number,
+    column: number,
+    sixelIndex: number,
+    operation: "set" | "clear" | "toggle"
+  ) {
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        editMosaicSixelCommand(
+          editor.service.id,
+          editor.page.id,
+          editor.subpage.id,
+          rowIndex,
+          column,
+          sixelIndex,
+          operation
+        )
+      )
+    );
+    setSelection({ rowIndex, column });
+  }
+
   function commitHeaderClockMode(mode: "original" | "local") {
     setHistory((currentHistory) =>
       commitEditorHistory(
@@ -317,7 +342,9 @@ export function App() {
         </header>
 
         <TeletextCanvas
+          activeTool={activeTool}
           onCellSelect={setSelection}
+          onMosaicSixelEdit={commitMosaicSixelEdit}
           onTextInput={commitText}
           rows={displayRows}
           selection={selection}
@@ -334,22 +361,20 @@ export function App() {
         <p className="save-status" role="status">{saveMessage}</p>
       </section>
 
-      <InspectorPanel
+      <ToolDock
+        activeTool={activeTool}
+        disabled={!selection}
         page={editor.page}
         subpage={editor.subpage}
         templates={editor.templates}
         validationIssues={editor.validationIssues}
         selection={selection}
+        onBackgroundSelect={commitBackgroundColour}
+        onControlSelect={commitControlCode}
         onHeaderClockModeChange={commitHeaderClockMode}
+        onMosaicPaint={commitMosaicPaint}
+        onToolChange={setActiveTool}
       />
-      <aside className="control-dock" aria-label="Control palette">
-        <ControlPalette
-          disabled={!selection}
-          onBackgroundSelect={commitBackgroundColour}
-          onControlSelect={commitControlCode}
-          onMosaicPaint={commitMosaicPaint}
-        />
-      </aside>
     </main>
   );
 }

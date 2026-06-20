@@ -22,6 +22,8 @@ export interface EditorHistory {
   future: Project[];
 }
 
+export type MosaicSixelOperation = "set" | "clear" | "toggle";
+
 function cloneProject(project: Project): Project {
   return structuredClone(project) as Project;
 }
@@ -266,6 +268,67 @@ export function paintMosaicCommand(
     },
     annotations: []
   });
+}
+
+function mosaicMaskForCell(cell: Cell) {
+  if (cell.kind === "mosaic" && cell.mosaic) {
+    return cell.mosaic.sixelMask;
+  }
+
+  if (cell.kind === "character") {
+    return cell.byte & 0x3f;
+  }
+
+  return 0;
+}
+
+export function editMosaicSixelCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number,
+  sixelIndex: number,
+  operation: MosaicSixelOperation
+): EditorCommand {
+  const bit = 1 << sixelIndex;
+
+  return {
+    id: "edit-mosaic-sixel",
+    label: "Edit mosaic sixel",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, { serviceId, pageId, subpageId, rowIndex, column });
+
+      if (!row || column < 0 || column >= row.cells.length || sixelIndex < 0 || sixelIndex > 5) {
+        return project;
+      }
+
+      const current = row.cells[column];
+      const currentMask = mosaicMaskForCell(current);
+      const nextMask = operation === "set"
+        ? currentMask | bit
+        : operation === "clear"
+          ? currentMask & ~bit
+          : currentMask ^ bit;
+      const mosaic = current.kind === "mosaic" ? current.mosaic : undefined;
+
+      row.cells[column] = {
+        column,
+        kind: "mosaic",
+        byte: 0x40 | (nextMask & 0x3f),
+        mosaic: {
+          separated: mosaic?.separated ?? false,
+          sixelMask: nextMask & 0x3f,
+          foreground: mosaic?.foreground ?? { palette: "level1", index: 7 },
+          background: mosaic?.background ?? { palette: "level1", index: 0 }
+        },
+        annotations: current.annotations ?? []
+      };
+
+      return next;
+    }
+  };
 }
 
 export function applyTemplateCommand(

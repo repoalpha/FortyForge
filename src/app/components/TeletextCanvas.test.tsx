@@ -5,7 +5,8 @@ import {
   displayBackgroundForRenderedCell,
   FRAMEBUFFER_CELL_HEIGHT,
   FRAMEBUFFER_CELL_WIDTH,
-  mosaicMaskForRenderedCell
+  mosaicMaskForRenderedCell,
+  sixelIndexFromCellPoint
 } from "./TeletextCanvas";
 
 function renderedCell(partial: Partial<RenderedLevel1Cell>): RenderedLevel1Cell {
@@ -67,5 +68,14 @@ describe("TeletextCanvas render helpers", () => {
   it("uses a wider framebuffer closer to the PIT studio preview", () => {
     expect(FRAMEBUFFER_CELL_WIDTH * 40).toBeGreaterThan(480);
     expect(FRAMEBUFFER_CELL_HEIGHT * 25).toBe(500);
+  });
+
+  it("maps points inside a character cell to the correct 2 by 3 sixel index", () => {
+    expect(sixelIndexFromCellPoint(0, 0, 16, 20)).toBe(0);
+    expect(sixelIndexFromCellPoint(15, 0, 16, 20)).toBe(1);
+    expect(sixelIndexFromCellPoint(0, 9, 16, 20)).toBe(2);
+    expect(sixelIndexFromCellPoint(15, 9, 16, 20)).toBe(3);
+    expect(sixelIndexFromCellPoint(0, 19, 16, 20)).toBe(4);
+    expect(sixelIndexFromCellPoint(15, 19, 16, 20)).toBe(5);
   });
 });

@@ -8,7 +8,7 @@ FortyForge must not rely on HTML and CSS layout for the teletext display. The ed
 
 ### Studio Mode
 
-Studio Mode is the default laptop layout. It keeps the page navigator and templates on the left, the framebuffer preview in the center, and the inspector, control-code details, validation, and row byte view on the right.
+Studio Mode is the default laptop layout. It keeps the page navigator and templates on the left, the framebuffer preview in the center, and an active tool dock on the right. The right side is reserved for authoring tools rather than passive inspection: Mosaic mode, control-code insertion, background controls, X/0 clock policy, and later DRCS, palette, and 12x10/6x5 glyph tools.
 
 ### Playout Mode
 
@@ -19,6 +19,8 @@ Playout Mode is for dual-screen or live use. The clean display should be detacha
 Studio Mode should expose control characters as deliberate editable objects rather than hidden formatting. The first implementation provides a manual control palette for Level 1 colour, graphics, background, and size control bytes. Colour and graphics controls should display literal Level 1 swatches so authors can see the intended foreground choice before insertion. Later studio helpers can auto-insert required controls at row or region boundaries when a user changes foreground/background intent, while still leaving the resulting bytes visible and editable.
 
 Control insertion must preserve the 40-byte row contract. The studio palette inserts the selected control byte at the cursor, shifts following cells one column to the right, and drops the final byte in that row. This gives authors a word-processor-style insert action while keeping the stored page immediately packet-safe. A later complementary delete/compact command should pull row content left when authors remove a control byte.
+
+Mosaic editing is a first-class tool mode. In Mosaic mode the framebuffer cell is treated as a `2x3` sixel target: pointer painting sets sixels directly, right-click or alternate-button painting clears them, and `Q W / A S / Z X` toggles the six individual blocks from the keyboard. Pattern buttons in the tool dock provide whole-cell accelerators such as empty, full block, halves, diagonals, and checkerboard. Level 1 keeps one foreground colour and one background state per character cell; per-sixel colour belongs to later enhanced/DRCS workflows, not the v1 Level 1 mosaic model.
 
 ## X/0 Header Policy
 
@@ -45,6 +47,7 @@ Initial TypeScript implementation:
 - Draws Level 1 mosaic cells as crisp 2 by 3 sixel blocks.
 - Draws typed bytes in graphics mode as mosaic masks for a practical G1 graphics preview.
 - Draws X/0 with normal Level 1 background state instead of forcing a special editor-only colour band.
+- Supports direct `2x3` sixel painting on the framebuffer in Mosaic mode.
 - Preserves hit testing by mapping pointer coordinates back to row and column.
 - Draws selection as an overlay, not as document layout.
 - Keeps DOM grid semantics available for accessibility and tests until a richer canvas accessibility layer exists.

@@ -28,6 +28,10 @@ describe("App", () => {
     expect(screen.getByRole("img", { name: "PIT framebuffer preview" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Studio" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Playout" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("complementary", { name: "Inspector" })).not.toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Tool dock" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Text" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Mosaic" })).toHaveAttribute("aria-pressed", "false");
 
     expect(screen.getByText("0 validation issues")).toBeInTheDocument();
     expect(screen.getByText("25 packet preview records")).toBeInTheDocument();
@@ -111,7 +115,7 @@ describe("App", () => {
     expect(screen.getByRole("gridcell", {
       name: "Row 1, column 2, byte 65"
     })).toHaveTextContent("A");
-    expect(screen.getByText("Control palette")).toBeInTheDocument();
+    expect(screen.getByText("Control codes")).toBeInTheDocument();
   });
 
   it("inserts background colour control sequences from the studio palette", () => {
@@ -149,6 +153,38 @@ describe("App", () => {
 
     expect(screen.getByRole("gridcell", {
       name: "Row 1, column 1, byte 127"
+    })).toBeInTheDocument();
+  });
+
+  it("paints individual mosaic sixels directly on the framebuffer", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic" }));
+    fireEvent.mouseDown(screen.getByRole("img", { name: "PIT framebuffer preview" }), {
+      button: 0,
+      buttons: 1,
+      clientX: 1,
+      clientY: 21
+    });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 65"
+    })).toBeInTheDocument();
+  });
+
+  it("toggles individual mosaic sixels with keyboard shortcuts in Mosaic mode", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.keyDown(screen.getByRole("grid", { name: "40 by 25 teletext grid" }), {
+      key: "W"
+    });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 66"
     })).toBeInTheDocument();
   });
 
