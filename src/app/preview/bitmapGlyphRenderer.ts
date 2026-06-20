@@ -1,3 +1,5 @@
+import { getSaa5050Glyph } from "./saa5050Font";
+
 export type BitmapGlyph = string[];
 
 export interface BitmapDrawContext {
@@ -34,8 +36,7 @@ const FALLBACK_GLYPH: BitmapGlyph = [
   "00100"
 ];
 
-// Temporary preview atlas. This gives a sharp pixel renderer now; the PIT/Ceefax
-// bitmap atlas should replace these shapes behind the same draw function.
+// Last-resort fallback for characters outside the SAA5050 English set.
 const BITMAP_GLYPHS: Record<string, BitmapGlyph> = {
   " ": [
     "00000",
@@ -409,7 +410,9 @@ const BITMAP_GLYPHS: Record<string, BitmapGlyph> = {
 };
 
 export function getBitmapGlyph(value: string): BitmapGlyph {
-  return normalizeBitmapGlyph(BITMAP_GLYPHS[value.toUpperCase()] ?? FALLBACK_GLYPH);
+  const glyph = getSaa5050Glyph(value) ?? getSaa5050Glyph(value.toUpperCase());
+
+  return glyph ? [...glyph] : normalizeBitmapGlyph(BITMAP_GLYPHS[value.toUpperCase()] ?? FALLBACK_GLYPH);
 }
 
 function normalizeBitmapGlyph(glyph: BitmapGlyph): BitmapGlyph {

@@ -30,16 +30,16 @@ class RecordingContext {
 }
 
 describe("bitmap glyph renderer", () => {
-  it("returns a deterministic 6 by 10 glyph bitmap for known teletext text", () => {
+  it("returns a deterministic SAA5050 5 by 10 glyph with 6-pixel advance", () => {
     expect(getBitmapGlyph("A")).toEqual([
       "000000",
-      "001110",
-      "010001",
-      "010001",
-      "011111",
-      "010001",
-      "010001",
-      "010001",
+      "001000",
+      "010100",
+      "100010",
+      "100010",
+      "111110",
+      "100010",
+      "100010",
       "000000",
       "000000"
     ]);
@@ -59,10 +59,25 @@ describe("bitmap glyph renderer", () => {
 
     expect(context.rects.slice(0, 3)).toEqual([
       { fillStyle: "#ffffff", height: 2, width: 2, x: 4, y: 2 },
-      { fillStyle: "#ffffff", height: 2, width: 2, x: 6, y: 2 },
-      { fillStyle: "#ffffff", height: 2, width: 2, x: 8, y: 2 }
+      { fillStyle: "#ffffff", height: 2, width: 2, x: 2, y: 4 },
+      { fillStyle: "#ffffff", height: 2, width: 2, x: 6, y: 4 }
     ]);
-    expect(context.rects).toHaveLength(18);
+    expect(context.rects).toHaveLength(16);
+  });
+
+  it("includes the SAA5050 English pound glyph", () => {
+    expect(getBitmapGlyph("£")).toEqual([
+      "000000",
+      "001100",
+      "010010",
+      "010000",
+      "111000",
+      "010000",
+      "010000",
+      "111110",
+      "000000",
+      "000000"
+    ]);
   });
 
   it("draws teletext mosaics as crisp 2 by 3 blocks", () => {
