@@ -130,6 +130,17 @@ function shiftRowRightWithCells(rowCells: Cell[], column: number, insertedCells:
   }));
 }
 
+function shiftRowLeftFromColumn(rowCells: Cell[], column: number) {
+  return [
+    ...rowCells.slice(0, column),
+    ...rowCells.slice(column + 1),
+    emptyCell(rowCells.length - 1)
+  ].map((cell, cellColumn) => ({
+    ...cell,
+    column: cellColumn
+  }));
+}
+
 export function setCellCommand(
   serviceId: string,
   pageId: string,
@@ -240,6 +251,31 @@ export function insertBackgroundColourWithRowShiftCommand(
       }
 
       row.cells = shiftRowRightWithCells(row.cells, column, insertedCells);
+
+      return next;
+    }
+  };
+}
+
+export function deleteCellWithRowShiftCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number
+): EditorCommand {
+  return {
+    id: "delete-cell-row-shift",
+    label: "Delete cell",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, { serviceId, pageId, subpageId, rowIndex, column });
+
+      if (!row || column < 0 || column >= row.cells.length) {
+        return project;
+      }
+
+      row.cells = shiftRowLeftFromColumn(row.cells, column);
 
       return next;
     }

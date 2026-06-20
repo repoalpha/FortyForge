@@ -25,6 +25,7 @@ interface TeletextCanvasProps {
   selection?: CellSelection;
   activeTool?: EditorTool;
   onCellSelect: (selection: CellSelection) => void;
+  onCellDelete: () => void;
   onMosaicSixelEdit?: (
     rowIndex: number,
     column: number,
@@ -103,6 +104,7 @@ export function TeletextCanvas({
   rows,
   selection,
   onCellSelect,
+  onCellDelete,
   onMosaicSixelEdit,
   onTextInput
 }: TeletextCanvasProps) {
@@ -320,6 +322,12 @@ export function TeletextCanvas({
           ) {
             event.preventDefault();
             onMosaicSixelEdit(selection.rowIndex, selection.column, sixelIndex, "toggle");
+            return;
+          }
+
+          if ((event.key === "Backspace" || event.key === "Delete") && selection) {
+            event.preventDefault();
+            onCellDelete();
             return;
           }
 

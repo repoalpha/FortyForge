@@ -135,6 +135,45 @@ describe("App", () => {
     expect(screen.getByText("Control codes")).toBeInTheDocument();
   });
 
+  it("deletes the selected cell and compacts the row left", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("gridcell", { name: "Row 1, column 1, byte 32" }));
+    fireEvent.keyDown(grid, { key: "A" });
+    fireEvent.keyDown(grid, { key: "B" });
+    fireEvent.keyDown(grid, { key: "C" });
+    fireEvent.click(screen.getByRole("gridcell", { name: "Row 1, column 2, byte 66" }));
+    fireEvent.keyDown(grid, { key: "Delete" });
+
+    expect(screen.getByRole("gridcell", { name: "Row 1, column 1, byte 65" }))
+      .toHaveTextContent("A");
+    expect(screen.getByRole("gridcell", { name: "Row 1, column 2, byte 67" }))
+      .toHaveTextContent("C");
+    expect(screen.getByRole("gridcell", { name: "Row 1, column 3, byte 32" }))
+      .toHaveTextContent("");
+  });
+
+  it("removes a colour control with Delete so the row renders from the remaining bytes", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("gridcell", { name: "Row 1, column 1, byte 32" }));
+    fireEvent.keyDown(grid, { key: "A" });
+    fireEvent.click(screen.getByRole("gridcell", { name: "Row 1, column 1, byte 65" }));
+    fireEvent.click(screen.getByRole("button", { name: "Alpha red" }));
+    const controlCell = screen.getByRole("gridcell", { name: "Row 1, column 1, byte 1" });
+    expect(controlCell).toBeInTheDocument();
+
+    fireEvent.click(controlCell);
+    fireEvent.keyDown(grid, { key: "Delete" });
+
+    expect(screen.getByRole("gridcell", { name: "Row 1, column 1, byte 65" }))
+      .toHaveTextContent("A");
+    expect(screen.queryByRole("gridcell", { name: "Row 1, column 1, byte 1" }))
+      .not.toBeInTheDocument();
+  });
+
   it("ignores graphics colour controls while the Text tool is active", () => {
     render(<App />);
 

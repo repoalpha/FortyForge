@@ -5,6 +5,7 @@ export {
   applyTemplateCommand,
   commitEditorCommand,
   createEditorHistory,
+  deleteCellWithRowShiftCommand,
   editMosaicSixelCommand,
   insertControlCodeCommand,
   insertBackgroundColourWithRowShiftCommand,

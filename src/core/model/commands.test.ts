@@ -6,6 +6,7 @@ import {
   applyTemplateCommand,
   createEditorHistory,
   editMosaicSixelCommand,
+  deleteCellWithRowShiftCommand,
   insertBackgroundColourWithRowShiftCommand,
   insertControlCodeCommand,
   insertControlCodeWithRowShiftCommand,
@@ -166,6 +167,49 @@ describe("editor commands", () => {
     expect(cells[4].character?.value).toBe("D");
     expect(cells[39].column).toBe(39);
     expect(withText.services[0].pages[0].subpages[0].rows[4].cells[1].character?.value).toBe("B");
+  });
+
+  it("deletes a cell by shifting the row left and blanking the final column", () => {
+    const project = createDefaultProject();
+    const withText = applyEditorCommand(
+      project,
+      insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 0, "ABCD")
+    );
+    const withControl = applyEditorCommand(
+      withText,
+      insertControlCodeWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        1,
+        0x01
+      )
+    );
+
+    const next = applyEditorCommand(
+      withControl,
+      deleteCellWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        1
+      )
+    );
+    const cells = next.services[0].pages[0].subpages[0].rows[4].cells;
+
+    expect(cells).toHaveLength(40);
+    expect(cells[0].character?.value).toBe("A");
+    expect(cells[1].character?.value).toBe("B");
+    expect(cells[2].character?.value).toBe("C");
+    expect(cells[3].character?.value).toBe("D");
+    expect(cells[39]).toEqual(expect.objectContaining({
+      column: 39,
+      kind: "empty",
+      byte: 0x20
+    }));
+    expect(withControl.services[0].pages[0].subpages[0].rows[4].cells[1].kind).toBe("control");
   });
 
   it("inserts a background colour sequence by shifting the row right", () => {

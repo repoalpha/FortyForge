@@ -10,6 +10,7 @@ import {
   applyTemplateCommand,
   composeExportRows,
   createEditorHistory,
+  deleteCellWithRowShiftCommand,
   editMosaicSixelCommand,
   exportNativeProject,
   exportTti,
@@ -183,6 +184,26 @@ export function App() {
     });
   }
 
+  function commitCellDelete() {
+    if (!selection) {
+      return;
+    }
+
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        deleteCellWithRowShiftCommand(
+          editor.service.id,
+          editor.page.id,
+          editor.subpage.id,
+          selection.rowIndex,
+          selection.column
+        )
+      )
+    );
+    setSelection(selection);
+  }
+
   function commitMosaicPaint(sixelMask: number) {
     if (!selection) {
       return;
@@ -351,6 +372,7 @@ export function App() {
         <TeletextCanvas
           activeTool={activeTool}
           onCellSelect={setSelection}
+          onCellDelete={commitCellDelete}
           onMosaicSixelEdit={commitMosaicSixelEdit}
           onTextInput={commitText}
           rows={displayRows}
