@@ -139,6 +139,19 @@ describe("App", () => {
     })).toHaveTextContent("A");
   });
 
+  it("paints mosaic graphics from the studio palette", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic full block" }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 127"
+    })).toBeInTheDocument();
+  });
+
   it("switches the X/0 header clock between local and original modes", () => {
     render(<App />);
 

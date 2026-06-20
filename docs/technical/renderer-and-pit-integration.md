@@ -40,9 +40,11 @@ The renderer boundary should use deterministic data:
 
 Initial TypeScript implementation:
 
-- Draws a fixed 40 by 25 character grid into a canvas.
+- Draws a fixed 40 by 25 character grid into a 640 by 500 canvas.
 - Draws preview text from SAA5050 English bitmap data rather than browser fonts.
 - Draws Level 1 mosaic cells as crisp 2 by 3 sixel blocks.
+- Draws typed bytes in graphics mode as mosaic masks for a practical G1 graphics preview.
+- Draws X/0 with normal Level 1 background state instead of forcing a special editor-only colour band.
 - Preserves hit testing by mapping pointer coordinates back to row and column.
 - Draws selection as an overlay, not as document layout.
 - Keeps DOM grid semantics available for accessibility and tests until a richer canvas accessibility layer exists.
@@ -63,8 +65,9 @@ Immediate renderer priorities:
 
 - Compare the SAA5050 renderer against PIT output and record any row/column differences.
 - Keep the TypeScript framebuffer renderer as a fast editor preview, but compare it against PIT output once the PIT renderer bridge exists.
-- Treat double-height, double-width, conceal, hold graphics, and illegal-row validation as decoder behaviours, not CSS styles.
-- Allow the framebuffer preview to scale larger in Studio mode and occupy the full available screen in Playout mode.
+- Treat double-width, double-size, conceal, hold graphics, and illegal-row validation as decoder behaviours, not CSS styles.
+- Add a complete sixel mosaic editor, beyond the current full-block paint action.
+- Allow the framebuffer preview to occupy the full available screen in Playout mode.
 
 Future PIT-backed implementation:
 
@@ -84,6 +87,8 @@ FortyForge should update a Raspberry Pi or similar target without recompiling PI
 
 The key rule is that PIT consumes changing page data or packet streams. A display update must not require rebuilding the runtime.
 
+See `docs/technical/pit-live-roundtrip.md` for the proposed pull/edit/push workflow.
+
 ## Subpage And ETSI Backlog
 
 Subpages are now first-class editor objects: the page navigator can add a new fixed-width subpage and switch between subcodes such as `0000` and `0001` without losing row data. This is the correct foundation for ETSI-style carousel pages, but full standards behaviour still needs timing and transmission policy work.
@@ -93,4 +98,4 @@ Remaining ETSI/PIT alignment items:
 - Subpage cycle timing, hold behaviour, and export selection for page sets.
 - Packet X/26 enhancement handling, Fastext/TOP links, and Level 1.5/2.5/3.5 compatibility views.
 - Parity/Hamming packet encoding for byte-accurate T42/raw outputs.
-- Real SAA5050/PIT glyph data in the studio renderer, with visual regression checks against PIT output.
+- Visual regression checks against PIT output once the PIT reference project or live target is available.

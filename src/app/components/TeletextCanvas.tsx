@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { renderLevel1Row } from "../../core";
 import type { Cell, TeletextRow } from "../../core";
+import type { RenderedLevel1Cell } from "../../core";
 import {
   drawBitmapGlyph,
   drawMosaicGlyph
@@ -15,8 +16,8 @@ import type { CellSelection } from "../state/editorStore";
 
 const COLUMN_COUNT = 40;
 const ROW_COUNT = 25;
-const CELL_WIDTH = 12;
-const CELL_HEIGHT = 20;
+export const FRAMEBUFFER_CELL_WIDTH = 16;
+export const FRAMEBUFFER_CELL_HEIGHT = 20;
 
 interface TeletextCanvasProps {
   rows: TeletextRow[];
@@ -42,9 +43,27 @@ function cellText(cell: Cell): string {
 }
 
 function renderedCellHeight(doubleHeight: boolean, rowIndex: number, viewportHeight: number) {
-  const y = rowIndex * CELL_HEIGHT;
+  const y = rowIndex * FRAMEBUFFER_CELL_HEIGHT;
 
-  return doubleHeight ? Math.min(CELL_HEIGHT * 2, viewportHeight - y) : CELL_HEIGHT;
+  return doubleHeight
+    ? Math.min(FRAMEBUFFER_CELL_HEIGHT * 2, viewportHeight - y)
+    : FRAMEBUFFER_CELL_HEIGHT;
+}
+
+export function displayBackgroundForRenderedCell(cell: RenderedLevel1Cell) {
+  return level1ColourToCss(cell.background);
+}
+
+export function mosaicMaskForRenderedCell(cell: RenderedLevel1Cell) {
+  if (cell.source.kind === "mosaic" && cell.source.mosaic) {
+    return cell.source.mosaic.sixelMask;
+  }
+
+  if (cell.mode === "graphics" && cell.visible) {
+    return cell.source.byte & 0x3f;
+  }
+
+  return undefined;
 }
 
 export function TeletextCanvas({
@@ -61,8 +80,8 @@ export function TeletextCanvas({
       createTeletextViewport({
         columns: COLUMN_COUNT,
         rows: ROW_COUNT,
-        cellWidth: CELL_WIDTH,
-        cellHeight: CELL_HEIGHT
+        cellWidth: FRAMEBUFFER_CELL_WIDTH,
+        cellHeight: FRAMEBUFFER_CELL_HEIGHT
       }),
     []
   );
@@ -99,7 +118,7 @@ export function TeletextCanvas({
         const x = cell.column * viewport.cellWidth;
         const y = row.index * viewport.cellHeight;
         const cellHeight = renderedCellHeight(cell.doubleHeight, row.index, viewport.height);
-        context.fillStyle = row.index === 0 ? "#001f5f" : level1ColourToCss(cell.background);
+        context.fillStyle = displayBackgroundForRenderedCell(cell);
         context.fillRect(x, y, viewport.cellWidth, cellHeight);
       }
     }
@@ -110,13 +129,17 @@ export function TeletextCanvas({
         const y = row.index * viewport.cellHeight;
         const cellHeight = renderedCellHeight(cell.doubleHeight, row.index, viewport.height);
 
-        if (cell.source.kind === "mosaic" && cell.source.mosaic) {
+        const sixelMask = mosaicMaskForRenderedCell(cell);
+
+        if (sixelMask !== undefined) {
           drawMosaicGlyph(context, {
             cellHeight,
             cellWidth: viewport.cellWidth,
             colour: level1ColourToCss(cell.foreground),
-            separated: cell.source.mosaic.separated || cell.separatedGraphics,
-            sixelMask: cell.source.mosaic.sixelMask,
+            separated: cell.source.kind === "mosaic"
+              ? cell.source.mosaic?.separated || cell.separatedGraphics
+              : cell.separatedGraphics,
+            sixelMask,
             x,
             y
           });
@@ -200,7 +223,6 @@ export function TeletextCanvas({
                 aria-label={`Row ${row.index}, column ${cell.column + 1}, byte ${cell.byte}`}
                 className={[
                   "cell",
-                  row.index === 0 ? "header-cell" : "",
                   selection?.rowIndex === row.index && selection.column === cell.column
                     ? "selected-cell"
                     : ""

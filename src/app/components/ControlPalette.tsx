@@ -11,9 +11,10 @@ interface ControlPaletteProps {
   disabled: boolean;
   onBackgroundSelect: (colourIndex: number) => void;
   onControlSelect: (byte: number) => void;
+  onMosaicPaint: (sixelMask: number) => void;
 }
 
-const PALETTE_CATEGORIES = ["colour", "graphics", "background", "size"] as const;
+const PALETTE_CATEGORIES = ["colour", "graphics", "mosaics", "background", "size"] as const;
 const LEVEL_1_COLOUR_NAMES = [
   "black",
   "red",
@@ -43,7 +44,8 @@ function controlStyle(control: ControlCode): CSSProperties | undefined {
 export function ControlPalette({
   disabled,
   onBackgroundSelect,
-  onControlSelect
+  onControlSelect,
+  onMosaicPaint
 }: ControlPaletteProps) {
   const controls = LEVEL_1_CONTROL_CODES.filter((control) =>
     PALETTE_CATEGORIES.includes(control.category as (typeof PALETTE_CATEGORIES)[number])
@@ -65,6 +67,16 @@ export function ControlPalette({
           <div className="control-group" key={category}>
             <h3>{category}</h3>
             <div className="control-list">
+              {category === "mosaics" ? (
+                <button
+                  disabled={disabled}
+                  onClick={() => onMosaicPaint(0x3f)}
+                  title="Paint all six mosaic blocks in the selected cell"
+                  type="button"
+                >
+                  Mosaic full block
+                </button>
+              ) : null}
               {category === "background"
                 ? LEVEL_1_COLOUR_NAMES.map((colourName, colourIndex) => {
                     const background = LEVEL_1_CSS_COLOURS[colourIndex] ?? "#202830";

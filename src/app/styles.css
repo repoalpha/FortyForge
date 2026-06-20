@@ -267,11 +267,10 @@ section + section {
   border-radius: 8px;
   box-shadow: 0 18px 50px rgb(0 0 0 / 28%);
   padding: 16px;
-  width: min(100%, 1280px);
+  width: min(100%, 1440px);
 }
 
 .teletext-framebuffer {
-  aspect-ratio: 40 / 25;
   background: #000;
   border: 1px solid #202830;
   display: block;
@@ -350,10 +349,6 @@ section + section {
 
 .selected-cell {
   box-shadow: inset 0 0 0 2px #f2d15c;
-}
-
-.header-cell {
-  background: #001f5f;
 }
 
 .status-panel {

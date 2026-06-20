@@ -17,6 +17,7 @@ import {
   insertBackgroundColourWithRowShiftCommand,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
+  paintMosaicCommand,
   saveCurrentPageAsTemplateCommand,
   setPageHeaderClockModeCommand
 } from "../core";
@@ -173,6 +174,30 @@ export function App() {
     });
   }
 
+  function commitMosaicPaint(sixelMask: number) {
+    if (!selection) {
+      return;
+    }
+
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        paintMosaicCommand(
+          editor.service.id,
+          editor.page.id,
+          editor.subpage.id,
+          selection.rowIndex,
+          selection.column,
+          sixelMask
+        )
+      )
+    );
+    setSelection({
+      rowIndex: selection.rowIndex,
+      column: Math.min(selection.column + 1, 39)
+    });
+  }
+
   function commitHeaderClockMode(mode: "original" | "local") {
     setHistory((currentHistory) =>
       commitEditorHistory(
@@ -322,6 +347,7 @@ export function App() {
           disabled={!selection}
           onBackgroundSelect={commitBackgroundColour}
           onControlSelect={commitControlCode}
+          onMosaicPaint={commitMosaicPaint}
         />
       </aside>
     </main>
