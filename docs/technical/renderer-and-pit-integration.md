@@ -16,7 +16,7 @@ Playout Mode is for dual-screen or live use. The clean display should be detacha
 
 ## Studio Control Editing
 
-Studio Mode should expose control characters as deliberate editable objects rather than hidden formatting. The first implementation provides a manual control palette for Level 1 colour, graphics, background, and size control bytes. Later studio helpers can auto-insert required controls at row or region boundaries when a user changes foreground/background intent, while still leaving the resulting bytes visible and editable.
+Studio Mode should expose control characters as deliberate editable objects rather than hidden formatting. The first implementation provides a manual control palette for Level 1 colour, graphics, background, and size control bytes. Colour and graphics controls should display literal Level 1 swatches so authors can see the intended foreground choice before insertion. Later studio helpers can auto-insert required controls at row or region boundaries when a user changes foreground/background intent, while still leaving the resulting bytes visible and editable.
 
 ## Renderer Boundary
 

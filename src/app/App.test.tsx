@@ -73,6 +73,11 @@ describe("App", () => {
   it("inserts control characters from the studio palette", () => {
     render(<App />);
 
+    expect(screen.getByRole("button", { name: "Alpha red" })).toHaveStyle({
+      backgroundColor: "#e00000",
+      color: "#ffffff"
+    });
+
     fireEvent.click(screen.getByRole("gridcell", {
       name: "Row 1, column 1, byte 32"
     }));
