@@ -48,6 +48,7 @@ export function TeletextCanvas({
   onTextInput
 }: TeletextCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const columns = Array.from({ length: COLUMN_COUNT }, (_, index) => index + 1);
   const viewport = useMemo(
     () =>
@@ -126,6 +127,11 @@ export function TeletextCanvas({
     }
   }, [rows, selection, viewport]);
 
+  function selectCell(nextSelection: CellSelection) {
+    onCellSelect(nextSelection);
+    gridRef.current?.focus();
+  }
+
   return (
     <div className="canvas-frame">
       <div className="column-ruler" aria-hidden="true">
@@ -144,7 +150,7 @@ export function TeletextCanvas({
           const hit = hitTestTeletextViewport(viewport, x, y);
 
           if (hit) {
-            onCellSelect(hit);
+            selectCell(hit);
           }
         }}
         ref={canvasRef}
@@ -161,6 +167,7 @@ export function TeletextCanvas({
         }}
         role="grid"
         aria-label="40 by 25 teletext grid"
+        ref={gridRef}
         tabIndex={0}
       >
         {rows.map((row) => (
@@ -181,7 +188,7 @@ export function TeletextCanvas({
                     : ""
                 ].filter(Boolean).join(" ")}
                 key={`${row.index}-${cell.column}`}
-                onClick={() => onCellSelect({ rowIndex: row.index, column: cell.column })}
+                onClick={() => selectCell({ rowIndex: row.index, column: cell.column })}
                 role="gridcell"
                 type="button"
               >

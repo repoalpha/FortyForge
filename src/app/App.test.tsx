@@ -70,6 +70,17 @@ describe("App", () => {
     ).toHaveTextContent("N");
   });
 
+  it("keeps keyboard input active after selecting a cell", () => {
+    render(<App />);
+
+    const firstBodyCell = screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    });
+    fireEvent.click(firstBodyCell);
+
+    expect(screen.getByRole("grid", { name: "40 by 25 teletext grid" })).toHaveFocus();
+  });
+
   it("inserts control characters from the studio palette", () => {
     render(<App />);
 
