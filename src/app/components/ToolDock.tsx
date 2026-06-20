@@ -111,6 +111,7 @@ export function ToolDock({
       </section>
 
       <ControlPalette
+        activeTool={activeTool}
         disabled={disabled}
         onBackgroundSelect={onBackgroundSelect}
         onControlSelect={onControlSelect}

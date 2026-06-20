@@ -13,6 +13,7 @@ import {
   editMosaicSixelCommand,
   exportNativeProject,
   exportTti,
+  getControlCodeByByte,
   importNativeProject,
   insertBackgroundColourWithRowShiftCommand,
   insertControlCodeWithRowShiftCommand,
@@ -130,6 +131,12 @@ export function App() {
 
   function commitControlCode(byte: number) {
     if (!selection) {
+      return;
+    }
+
+    const controlCode = getControlCodeByByte(byte);
+
+    if (activeTool === "text" && controlCode?.category === "graphics") {
       return;
     }
 

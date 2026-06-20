@@ -90,6 +90,23 @@ describe("App", () => {
     expect(screen.getByRole("grid", { name: "40 by 25 teletext grid" })).toHaveFocus();
   });
 
+  it("focuses the keyboard grid without scrolling the page", () => {
+    render(<App />);
+
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+    const focusWithoutScroll = vi.fn();
+    Object.defineProperty(grid, "focus", {
+      configurable: true,
+      value: focusWithoutScroll
+    });
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+
+    expect(focusWithoutScroll).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
   it("inserts control characters from the studio palette", () => {
     render(<App />);
 
@@ -116,6 +133,42 @@ describe("App", () => {
       name: "Row 1, column 2, byte 65"
     })).toHaveTextContent("A");
     expect(screen.getByText("Control codes")).toBeInTheDocument();
+  });
+
+  it("ignores graphics colour controls while the Text tool is active", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.keyDown(screen.getByRole("grid", { name: "40 by 25 teletext grid" }), {
+      key: "A"
+    });
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 65"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Graphics red" }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 65"
+    })).toHaveTextContent("A");
+    expect(screen.queryByRole("gridcell", {
+      name: "Row 1, column 1, byte 17"
+    })).not.toBeInTheDocument();
+  });
+
+  it("only enables graphics colour controls in Mosaic mode", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+
+    expect(screen.getByRole("button", { name: "Graphics red" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic" }));
+
+    expect(screen.getByRole("button", { name: "Graphics red" })).not.toBeDisabled();
   });
 
   it("inserts background colour control sequences from the studio palette", () => {

@@ -205,7 +205,7 @@ export function TeletextCanvas({
 
   function selectCell(nextSelection: CellSelection) {
     onCellSelect(nextSelection);
-    gridRef.current?.focus();
+    gridRef.current?.focus({ preventScroll: true });
   }
 
   function hitTestCanvasPointer(event: CanvasPointerLikeEvent) {

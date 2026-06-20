@@ -2,12 +2,14 @@ import type { CSSProperties } from "react";
 
 import type { ControlCode } from "../../core";
 import { LEVEL_1_CONTROL_CODES } from "../../core";
+import type { EditorTool } from "./TeletextCanvas";
 import {
   LEVEL_1_CSS_COLOURS,
   contrastColourForLevel1
 } from "../preview/teletextColours";
 
 interface ControlPaletteProps {
+  activeTool: EditorTool;
   disabled: boolean;
   onBackgroundSelect: (colourIndex: number) => void;
   onControlSelect: (byte: number) => void;
@@ -41,6 +43,7 @@ function controlStyle(control: ControlCode): CSSProperties | undefined {
 }
 
 export function ControlPalette({
+  activeTool,
   disabled,
   onBackgroundSelect,
   onControlSelect
@@ -89,7 +92,7 @@ export function ControlPalette({
                 : null}
               {(groupedControls[category] ?? []).map((control) => (
                 <button
-                  disabled={disabled}
+                  disabled={disabled || (control.category === "graphics" && activeTool !== "mosaic")}
                   key={control.id}
                   onClick={() => onControlSelect(control.byte)}
                   style={controlStyle(control)}
