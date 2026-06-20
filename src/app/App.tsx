@@ -1,14 +1,60 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { InspectorPanel } from "./components/InspectorPanel";
 import { PageNavigator } from "./components/PageNavigator";
 import { TeletextCanvas } from "./components/TeletextCanvas";
 import { TemplateLibrary } from "./components/TemplateLibrary";
 import { ValidationPanel } from "./components/ValidationPanel";
-import { createEditorViewModel } from "./state/editorStore";
+import {
+  applyTemplateCommand,
+  insertTextCommand
+} from "../core";
+import {
+  commitEditorHistory,
+  createEditorViewModel,
+  createInitialEditorHistory,
+  redoEditorHistory,
+  undoEditorHistory
+} from "./state/editorStore";
+import type { CellSelection } from "./state/editorStore";
 
 export function App() {
-  const editor = useMemo(() => createEditorViewModel(), []);
+  const [history, setHistory] = useState(() => createInitialEditorHistory());
+  const [selection, setSelection] = useState<CellSelection | undefined>();
+  const editor = useMemo(() => createEditorViewModel(history.present), [history.present]);
+
+  function commitTemplate(templateId: string) {
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        applyTemplateCommand(editor.service.id, editor.page.id, templateId)
+      )
+    );
+  }
+
+  function commitText(value: string) {
+    if (!selection) {
+      return;
+    }
+
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        insertTextCommand(
+          editor.service.id,
+          editor.page.id,
+          editor.subpage.id,
+          selection.rowIndex,
+          selection.column,
+          value
+        )
+      )
+    );
+    setSelection({
+      rowIndex: selection.rowIndex,
+      column: Math.min(selection.column + value.length, 39)
+    });
+  }
 
   return (
     <main className="app-shell">
@@ -23,7 +69,7 @@ export function App() {
 
         <PageNavigator pages={editor.service.pages} service={editor.service} />
 
-        <TemplateLibrary templates={editor.templates} />
+        <TemplateLibrary onTemplateApply={commitTemplate} templates={editor.templates} />
       </aside>
 
       <section className="workspace" aria-label="Teletext workspace">
@@ -33,12 +79,31 @@ export function App() {
             <h2>Page {editor.page.pageNumber}</h2>
           </div>
           <div className="toolbar-actions">
+            <button
+              disabled={history.past.length === 0}
+              onClick={() => setHistory(undoEditorHistory)}
+              type="button"
+            >
+              Undo
+            </button>
+            <button
+              disabled={history.future.length === 0}
+              onClick={() => setHistory(redoEditorHistory)}
+              type="button"
+            >
+              Redo
+            </button>
             <button type="button">Preview Level 1</button>
             <button type="button">Export</button>
           </div>
         </header>
 
-        <TeletextCanvas rows={editor.subpage.rows} />
+        <TeletextCanvas
+          onCellSelect={setSelection}
+          onTextInput={commitText}
+          rows={editor.subpage.rows}
+          selection={selection}
+        />
 
         <ValidationPanel
           issues={editor.validationIssues}
@@ -51,6 +116,7 @@ export function App() {
         subpage={editor.subpage}
         templates={editor.templates}
         validationIssues={editor.validationIssues}
+        selection={selection}
       />
     </main>
   );

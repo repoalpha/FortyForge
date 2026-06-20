@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import { render, screen, within } from "@testing-library/react";
+import { fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { App } from "./App";
@@ -22,5 +23,47 @@ describe("App", () => {
 
     expect(screen.getByText("0 validation issues")).toBeInTheDocument();
     expect(screen.getByText("25 packet preview records")).toBeInTheDocument();
+  });
+
+  it("supports cell typing and template application", () => {
+    render(<App />);
+
+    const firstBodyCell = screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    });
+    fireEvent.click(firstBodyCell);
+    fireEvent.keyDown(screen.getByRole("grid", { name: "40 by 25 teletext grid" }), {
+      key: "A"
+    });
+
+    expect(
+      screen.getByRole("gridcell", {
+        name: "Row 1, column 1, byte 65"
+      })
+    ).toHaveTextContent("A");
+    expect(screen.getByText("Row 1, column 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(
+      screen.getByRole("gridcell", {
+        name: "Row 1, column 1, byte 32"
+      })
+    ).toHaveTextContent("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    expect(
+      screen.getByRole("gridcell", {
+        name: "Row 1, column 1, byte 65"
+      })
+    ).toHaveTextContent("A");
+
+    fireEvent.click(screen.getByRole("button", { name: "Weather page" }));
+
+    expect(screen.getByTestId("active-template-name")).toHaveTextContent("Weather page");
+    expect(
+      screen.getByRole("gridcell", {
+        name: "Row 0, column 1, byte 87"
+      })
+    ).toHaveTextContent("W");
   });
 });

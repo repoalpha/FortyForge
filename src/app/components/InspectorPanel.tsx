@@ -1,17 +1,20 @@
 import type { Page, Subpage, Template, ValidationIssue } from "../../core";
+import type { CellSelection } from "../state/editorStore";
 
 interface InspectorPanelProps {
   page: Page;
   subpage: Subpage;
   templates: Template[];
   validationIssues: ValidationIssue[];
+  selection?: CellSelection;
 }
 
 export function InspectorPanel({
   page,
   subpage,
   templates,
-  validationIssues
+  validationIssues,
+  selection
 }: InspectorPanelProps) {
   const activeTemplate = templates.find(
     (template) => template.id === page.metadata.templateId
@@ -39,7 +42,17 @@ export function InspectorPanel({
           </div>
           <div>
             <dt>Template</dt>
-            <dd>{activeTemplate?.name ?? "No template applied"}</dd>
+            <dd data-testid="active-template-name">
+              {activeTemplate?.name ?? "No template applied"}
+            </dd>
+          </div>
+          <div>
+            <dt>Selection</dt>
+            <dd>
+              {selection
+                ? `Row ${selection.rowIndex}, column ${selection.column + 1}`
+                : "No cell selected"}
+            </dd>
           </div>
         </dl>
       </section>

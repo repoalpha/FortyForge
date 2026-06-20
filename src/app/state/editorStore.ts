@@ -1,10 +1,16 @@
 import {
   BUILT_IN_TEMPLATES,
+  commitEditorCommand,
   createDefaultProject,
+  createEditorHistory,
   exportPacketPreview,
+  redo,
+  undo,
   validateProject
 } from "../../core";
 import type {
+  EditorCommand,
+  EditorHistory,
   PacketPreview,
   Page,
   Project,
@@ -22,6 +28,30 @@ export interface EditorViewModel {
   templates: Template[];
   validationIssues: ValidationIssue[];
   packetPreview: PacketPreview;
+}
+
+export interface CellSelection {
+  rowIndex: number;
+  column: number;
+}
+
+export function createInitialEditorHistory(): EditorHistory {
+  return createEditorHistory(createDefaultProject());
+}
+
+export function commitEditorHistory(
+  history: EditorHistory,
+  command: EditorCommand
+): EditorHistory {
+  return commitEditorCommand(history, command);
+}
+
+export function undoEditorHistory(history: EditorHistory): EditorHistory {
+  return undo(history);
+}
+
+export function redoEditorHistory(history: EditorHistory): EditorHistory {
+  return redo(history);
 }
 
 export function createEditorViewModel(project = createDefaultProject()): EditorViewModel {

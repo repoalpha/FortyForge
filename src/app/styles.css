@@ -223,6 +223,10 @@ section + section {
   outline-offset: -2px;
 }
 
+.selected-cell {
+  box-shadow: inset 0 0 0 2px #f2d15c;
+}
+
 .header-cell {
   background: #001f5f;
 }
