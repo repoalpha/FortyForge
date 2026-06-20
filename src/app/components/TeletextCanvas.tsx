@@ -89,12 +89,15 @@ export function TeletextCanvas({
       for (const cell of renderedRow.cells) {
         const x = cell.column * viewport.cellWidth;
         const y = row.index * viewport.cellHeight;
+        const cellHeight = cell.doubleHeight
+          ? Math.min(viewport.cellHeight * 2, viewport.height - y)
+          : viewport.cellHeight;
         context.fillStyle = row.index === 0 ? "#001f5f" : level1ColourToCss(cell.background);
-        context.fillRect(x, y, viewport.cellWidth, viewport.cellHeight);
+        context.fillRect(x, y, viewport.cellWidth, cellHeight);
 
         if (cell.source.kind === "mosaic" && cell.source.mosaic) {
           drawMosaicGlyph(context, {
-            cellHeight: viewport.cellHeight,
+            cellHeight,
             cellWidth: viewport.cellWidth,
             colour: level1ColourToCss(cell.foreground),
             separated: cell.source.mosaic.separated || cell.separatedGraphics,
@@ -104,7 +107,7 @@ export function TeletextCanvas({
           });
         } else if (cell.visible && cell.value) {
           drawBitmapGlyph(context, {
-            cellHeight: viewport.cellHeight,
+            cellHeight,
             cellWidth: viewport.cellWidth,
             colour: level1ColourToCss(cell.foreground),
             value: cell.value,

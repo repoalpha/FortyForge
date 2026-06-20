@@ -9,6 +9,7 @@ export {
   insertTextCommand,
   paintMosaicCommand,
   redo,
+  saveCurrentPageAsTemplateCommand,
   setPageHeaderClockModeCommand,
   setCellCommand,
   undo

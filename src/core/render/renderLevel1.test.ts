@@ -116,4 +116,28 @@ describe("renderLevel1Row", () => {
       })
     );
   });
+
+  it("marks characters after double-height controls", () => {
+    const row = rowWith([
+      controlCell(0, 0x0d),
+      characterCell(1, "H"),
+      controlCell(2, 0x0c),
+      characterCell(3, "N")
+    ]);
+
+    const rendered = renderLevel1Row(row);
+
+    expect(rendered.cells[1]).toEqual(
+      expect.objectContaining({
+        doubleHeight: true,
+        value: "H"
+      })
+    );
+    expect(rendered.cells[3]).toEqual(
+      expect.objectContaining({
+        doubleHeight: false,
+        value: "N"
+      })
+    );
+  });
 });

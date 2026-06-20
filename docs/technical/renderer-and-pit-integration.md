@@ -59,6 +59,13 @@ The studio preview should replace the temporary atlas with an authentic SAA5050 
 
 The implementation should keep the current `drawBitmapGlyph` boundary, but swap the temporary atlas for imported SAA5050 glyph data with recorded licence attribution.
 
+Immediate renderer priorities:
+
+- Replace the temporary 5x7-ish atlas with SAA5050-compatible 6x10 glyph data, preferably from the same source or equivalent source as PIT.
+- Keep the TypeScript framebuffer renderer as a fast editor preview, but compare it against PIT output once the PIT renderer bridge exists.
+- Treat double-height, double-width, conceal, hold graphics, and illegal-row validation as decoder behaviours, not CSS styles.
+- Allow the framebuffer preview to scale larger in Studio mode and occupy the full available screen in Playout mode.
+
 Future PIT-backed implementation:
 
 - Compile the existing PIT rendering core to WebAssembly, or expose it through Tauri native commands.

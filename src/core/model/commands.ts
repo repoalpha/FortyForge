@@ -211,6 +211,41 @@ export function applyTemplateCommand(
   };
 }
 
+export function saveCurrentPageAsTemplateCommand(
+  serviceId: string,
+  pageId: string
+): EditorCommand {
+  return {
+    id: "save-current-page-as-template",
+    label: "Save page as template",
+    apply: (project) => {
+      const service = project.services.find((item) => item.id === serviceId);
+      const page = service?.pages.find((item) => item.id === pageId);
+      const subpage = page?.subpages[0];
+
+      if (!page || !subpage) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+      const templateNumber = next.templates.length + 1;
+      const templateId = `custom-template-${templateNumber}`;
+
+      next.templates.push({
+        id: templateId,
+        name: `Custom template ${templateNumber}`,
+        description: `Saved from page ${page.pageNumber}.`,
+        category: "blank",
+        targetPresentationLevel: page.metadata.targetPresentationLevel,
+        rows: structuredClone(subpage.rows),
+        regions: []
+      });
+
+      return next;
+    }
+  };
+}
+
 export function setPageHeaderClockModeCommand(
   serviceId: string,
   pageId: string,

@@ -9,8 +9,12 @@ import { ValidationPanel } from "./components/ValidationPanel";
 import {
   applyTemplateCommand,
   composeExportRows,
+  createEditorHistory,
+  exportNativeProject,
+  importNativeProject,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
+  saveCurrentPageAsTemplateCommand,
   setPageHeaderClockModeCommand
 } from "../core";
 import {
@@ -23,12 +27,28 @@ import {
 import type { CellSelection } from "./state/editorStore";
 
 type LayoutMode = "studio" | "playout";
+const LOCAL_PROJECT_KEY = "fortyforge.currentProject";
+
+function loadInitialHistory() {
+  const savedProject = window.localStorage.getItem(LOCAL_PROJECT_KEY);
+
+  if (!savedProject) {
+    return createInitialEditorHistory();
+  }
+
+  try {
+    return createEditorHistory(importNativeProject(savedProject));
+  } catch {
+    return createInitialEditorHistory();
+  }
+}
 
 export function App() {
-  const [history, setHistory] = useState(() => createInitialEditorHistory());
+  const [history, setHistory] = useState(loadInitialHistory);
   const [selection, setSelection] = useState<CellSelection | undefined>();
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("studio");
   const [clockNow, setClockNow] = useState(() => new Date());
+  const [saveMessage, setSaveMessage] = useState("Not saved");
   const editor = useMemo(() => createEditorViewModel(history.present), [history.present]);
   const displayRows = useMemo(
     () => composeExportRows(editor.page, editor.subpage, clockNow),
@@ -107,6 +127,23 @@ export function App() {
     );
   }
 
+  function saveProject() {
+    window.localStorage.setItem(LOCAL_PROJECT_KEY, exportNativeProject(history.present));
+    setSaveMessage(`Saved locally ${new Date().toLocaleTimeString()}`);
+  }
+
+  function saveTemplate() {
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(
+        currentHistory,
+        saveCurrentPageAsTemplateCommand(editor.service.id, editor.page.id)
+      );
+      window.localStorage.setItem(LOCAL_PROJECT_KEY, exportNativeProject(nextHistory.present));
+      return nextHistory;
+    });
+    setSaveMessage(`Saved template locally ${new Date().toLocaleTimeString()}`);
+  }
+
   return (
     <main className={`app-shell ${layoutMode === "playout" ? "playout-shell" : "studio-shell"}`}>
       <aside className="sidebar" aria-label="Service navigator">
@@ -161,6 +198,8 @@ export function App() {
               Redo
             </button>
             <button type="button">Preview Level 1</button>
+            <button onClick={saveTemplate} type="button">Save as template</button>
+            <button onClick={saveProject} type="button">Save</button>
             <button type="button">Export</button>
           </div>
         </header>
@@ -180,6 +219,7 @@ export function App() {
           issues={editor.validationIssues}
           packetPreview={editor.packetPreview}
         />
+        <p className="save-status" role="status">{saveMessage}</p>
       </section>
 
       <InspectorPanel

@@ -241,6 +241,7 @@ section + section {
   border-radius: 8px;
   box-shadow: 0 18px 50px rgb(0 0 0 / 28%);
   padding: 16px;
+  width: min(100%, 1280px);
 }
 
 .teletext-framebuffer {
@@ -249,7 +250,7 @@ section + section {
   border: 1px solid #202830;
   display: block;
   image-rendering: pixelated;
-  width: min(100%, 920px);
+  width: 100%;
 }
 
 .column-ruler,
@@ -272,7 +273,7 @@ section + section {
   border: 1px solid #202830;
   display: grid;
   grid-template-rows: repeat(25, minmax(0, 1fr));
-  width: min(100%, 920px);
+  width: 100%;
 }
 
 .teletext-access-grid {
@@ -287,6 +288,12 @@ section + section {
   color: #f2d15c;
   font-size: 13px;
   margin-top: 12px;
+}
+
+.save-status {
+  color: #7f8c96;
+  font-size: 12px;
+  margin-top: 8px;
 }
 
 .teletext-row {

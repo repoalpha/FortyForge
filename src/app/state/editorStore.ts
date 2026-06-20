@@ -64,7 +64,7 @@ export function createEditorViewModel(project = createDefaultProject()): EditorV
     service,
     page,
     subpage,
-    templates: BUILT_IN_TEMPLATES,
+    templates: [...BUILT_IN_TEMPLATES, ...project.templates],
     validationIssues: validateProject(project),
     packetPreview: exportPacketPreview(project)
   };

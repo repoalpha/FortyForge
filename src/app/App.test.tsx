@@ -2,11 +2,15 @@ import "@testing-library/jest-dom/vitest";
 
 import { render, screen, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { App } from "./App";
 
 describe("App", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("renders the model-backed editor shell", () => {
     render(<App />);
 
@@ -125,6 +129,50 @@ describe("App", () => {
     );
   });
 
+  it("saves and reloads the current project locally", () => {
+    const { unmount } = render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.keyDown(grid, { key: "S" });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByText(/Saved locally/)).toBeInTheDocument();
+
+    unmount();
+    render(<App />);
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 83"
+    })).toHaveTextContent("S");
+  });
+
+  it("saves the current page as a reusable custom template", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.keyDown(grid, { key: "T" });
+    fireEvent.click(screen.getByRole("button", { name: "Save as template" }));
+
+    expect(screen.getByRole("button", { name: "Custom template 1" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Blank page" }));
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    })).toHaveTextContent("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Custom template 1" }));
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 84"
+    })).toHaveTextContent("T");
+  });
+
+
   it("switches between studio and playout layouts", () => {
     render(<App />);
 
@@ -140,6 +188,7 @@ describe("App", () => {
 
     expect(source.default).toContain("drawBitmapGlyph");
     expect(source.default).toContain("drawMosaicGlyph");
+    expect(source.default).toContain("cell.doubleHeight");
     expect(source.default).not.toContain("fillText");
   });
 });
