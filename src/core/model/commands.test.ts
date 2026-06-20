@@ -393,6 +393,49 @@ describe("editor commands", () => {
       }));
   });
 
+  it("returns to the start-of-row black background after all generated background controls are deleted", () => {
+    const project = createDefaultProject();
+    const withBackground = applyEditorCommand(
+      project,
+      insertBackgroundColourWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        0,
+        4
+      )
+    );
+    const withText = applyEditorCommand(
+      withBackground,
+      insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 3, "A")
+    );
+
+    const withoutControls = [0, 1, 2].reduce(
+      (currentProject) =>
+        applyEditorCommand(
+          currentProject,
+          deleteCellWithRowShiftCommand(
+            "service-default",
+            "page-100",
+            "page-100-subpage-0000",
+            4,
+            0
+          )
+        ),
+      withText
+    );
+    const rendered = renderLevel1Row(withoutControls.services[0].pages[0].subpages[0].rows[4]);
+
+    expect(withoutControls.services[0].pages[0].subpages[0].rows[4].cells[0].character?.value)
+      .toBe("A");
+    expect(rendered.cells[0]).toEqual(expect.objectContaining({
+      background: { palette: "level1", index: 0 },
+      foreground: { palette: "level1", index: 7 },
+      value: "A"
+    }));
+  });
+
   it("applies templates through the command surface", () => {
     const project = createDefaultProject();
     const next = applyEditorCommand(
