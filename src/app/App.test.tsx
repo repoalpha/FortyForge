@@ -263,6 +263,28 @@ describe("App", () => {
     expect(screen.getByText("Row 1, column 5")).toBeInTheDocument();
   });
 
+  it("deletes a background colour helper as one unit from the grid", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Background blue" }));
+    fireEvent.keyDown(grid, { key: "A" });
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 4"
+    }));
+    fireEvent.keyDown(grid, { key: "Delete" });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 65"
+    })).toHaveTextContent("A");
+    expect(screen.queryByRole("gridcell", {
+      name: "Row 1, column 1, byte 29"
+    })).not.toBeInTheDocument();
+  });
+
   it("paints mosaic graphics from the studio palette", () => {
     render(<App />);
 

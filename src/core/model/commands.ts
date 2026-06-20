@@ -131,11 +131,11 @@ function shiftRowRightWithCells(rowCells: Cell[], column: number, insertedCells:
   }));
 }
 
-function shiftRowLeftFromColumn(rowCells: Cell[], column: number) {
+function shiftRowLeftFromColumn(rowCells: Cell[], column: number, count = 1) {
   return [
     ...rowCells.slice(0, column),
-    ...rowCells.slice(column + 1),
-    emptyCell(rowCells.length - 1)
+    ...rowCells.slice(column + count),
+    ...Array.from({ length: count }, (_, offset) => emptyCell(rowCells.length - count + offset))
   ].map((cell, cellColumn) => ({
     ...cell,
     column: cellColumn
@@ -144,6 +144,46 @@ function shiftRowLeftFromColumn(rowCells: Cell[], column: number) {
 
 function foregroundControlByteForMode(mode: "text" | "graphics", colourIndex: number) {
   return mode === "graphics" ? 0x10 + colourIndex : colourIndex;
+}
+
+function isTextColourControl(byte: number) {
+  return byte >= 0x00 && byte <= 0x07;
+}
+
+function isGraphicsColourControl(byte: number) {
+  return byte >= 0x10 && byte <= 0x17;
+}
+
+function isSameModeColourControl(firstByte: number, secondByte: number) {
+  return (
+    isTextColourControl(firstByte) && isTextColourControl(secondByte)
+  ) || (
+    isGraphicsColourControl(firstByte) && isGraphicsColourControl(secondByte)
+  );
+}
+
+function generatedBackgroundHelperStart(rowCells: Cell[], column: number) {
+  for (const start of [column, column - 1, column - 2]) {
+    if (start < 0 || start + 2 >= rowCells.length) {
+      continue;
+    }
+
+    const backgroundColour = rowCells[start];
+    const newBackground = rowCells[start + 1];
+    const restoredForeground = rowCells[start + 2];
+
+    if (
+      backgroundColour.kind === "control" &&
+      newBackground.kind === "control" &&
+      restoredForeground.kind === "control" &&
+      newBackground.byte === 0x1d &&
+      isSameModeColourControl(backgroundColour.byte, restoredForeground.byte)
+    ) {
+      return start;
+    }
+  }
+
+  return undefined;
 }
 
 export function setCellCommand(
@@ -286,7 +326,11 @@ export function deleteCellWithRowShiftCommand(
         return project;
       }
 
-      row.cells = shiftRowLeftFromColumn(row.cells, column);
+      const helperStart = generatedBackgroundHelperStart(row.cells, column);
+
+      row.cells = helperStart === undefined
+        ? shiftRowLeftFromColumn(row.cells, column)
+        : shiftRowLeftFromColumn(row.cells, helperStart, 3);
 
       return next;
     }

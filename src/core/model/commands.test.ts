@@ -342,7 +342,7 @@ describe("editor commands", () => {
     );
   });
 
-  it("recomputes background and foreground when deleting generated background controls", () => {
+  it("deletes a generated background helper sequence as one editor unit", () => {
     const project = createDefaultProject();
     const withBackground = applyEditorCommand(
       project,
@@ -360,37 +360,60 @@ describe("editor commands", () => {
       insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 3, "A")
     );
 
-    const withoutBlueForeground = applyEditorCommand(
+    const withoutSequence = applyEditorCommand(
       withText,
       deleteCellWithRowShiftCommand("service-default", "page-100", "page-100-subpage-0000", 4, 0)
     );
-    const withoutNewBackground = applyEditorCommand(
-      withText,
-      deleteCellWithRowShiftCommand("service-default", "page-100", "page-100-subpage-0000", 4, 1)
-    );
-    const withoutForegroundRestore = applyEditorCommand(
-      withText,
-      deleteCellWithRowShiftCommand("service-default", "page-100", "page-100-subpage-0000", 4, 2)
-    );
 
-    expect(renderLevel1Row(withoutBlueForeground.services[0].pages[0].subpages[0].rows[4]).cells[2])
-      .toEqual(expect.objectContaining({
-        background: { palette: "level1", index: 7 },
-        foreground: { palette: "level1", index: 7 },
-        value: "A"
-      }));
-    expect(renderLevel1Row(withoutNewBackground.services[0].pages[0].subpages[0].rows[4]).cells[2])
+    expect(withoutSequence.services[0].pages[0].subpages[0].rows[4].cells[0].character?.value)
+      .toBe("A");
+    expect(renderLevel1Row(withoutSequence.services[0].pages[0].subpages[0].rows[4]).cells[0])
       .toEqual(expect.objectContaining({
         background: { palette: "level1", index: 0 },
         foreground: { palette: "level1", index: 7 },
         value: "A"
       }));
-    expect(renderLevel1Row(withoutForegroundRestore.services[0].pages[0].subpages[0].rows[4]).cells[2])
-      .toEqual(expect.objectContaining({
-        background: { palette: "level1", index: 4 },
-        foreground: { palette: "level1", index: 4 },
+  });
+
+  it("deletes a generated background helper sequence when any helper byte is selected", () => {
+    const project = createDefaultProject();
+    const withBackground = applyEditorCommand(
+      project,
+      insertBackgroundColourWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        0,
+        4
+      )
+    );
+    const withText = applyEditorCommand(
+      withBackground,
+      insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 3, "A")
+    );
+
+    for (const selectedColumn of [0, 1, 2]) {
+      const next = applyEditorCommand(
+        withText,
+        deleteCellWithRowShiftCommand(
+          "service-default",
+          "page-100",
+          "page-100-subpage-0000",
+          4,
+          selectedColumn
+        )
+      );
+      const rendered = renderLevel1Row(next.services[0].pages[0].subpages[0].rows[4]);
+
+      expect(next.services[0].pages[0].subpages[0].rows[4].cells[0].character?.value)
+        .toBe("A");
+      expect(rendered.cells[0]).toEqual(expect.objectContaining({
+        background: { palette: "level1", index: 0 },
+        foreground: { palette: "level1", index: 7 },
         value: "A"
       }));
+    }
   });
 
   it("returns to the start-of-row black background after all generated background controls are deleted", () => {
@@ -411,19 +434,15 @@ describe("editor commands", () => {
       insertTextCommand("service-default", "page-100", "page-100-subpage-0000", 4, 3, "A")
     );
 
-    const withoutControls = [0, 1, 2].reduce(
-      (currentProject) =>
-        applyEditorCommand(
-          currentProject,
-          deleteCellWithRowShiftCommand(
-            "service-default",
-            "page-100",
-            "page-100-subpage-0000",
-            4,
-            0
-          )
-        ),
-      withText
+    const withoutControls = applyEditorCommand(
+      withText,
+      deleteCellWithRowShiftCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        4,
+        0
+      )
     );
     const rendered = renderLevel1Row(withoutControls.services[0].pages[0].subpages[0].rows[4]);
 
