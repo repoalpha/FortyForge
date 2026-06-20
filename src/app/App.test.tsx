@@ -70,6 +70,20 @@ describe("App", () => {
     ).toHaveTextContent("W");
   });
 
+  it("inserts control characters from the studio palette", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Alpha red" }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 1"
+    })).toHaveTextContent("");
+    expect(screen.getByText("Control palette")).toBeInTheDocument();
+  });
+
   it("switches between studio and playout layouts", () => {
     render(<App />);
 

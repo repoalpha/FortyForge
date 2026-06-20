@@ -13,7 +13,7 @@
 
 body {
   margin: 0;
-  min-width: 960px;
+  min-width: 1180px;
 }
 
 button {
@@ -22,7 +22,7 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 260px minmax(620px, 1fr) 300px;
+  grid-template-columns: 260px minmax(620px, 1fr) 300px 260px;
   min-height: 100vh;
 }
 
@@ -32,12 +32,14 @@ button {
 
 .playout-shell .sidebar,
 .playout-shell .inspector,
+.playout-shell .control-dock,
 .playout-shell .status-panel {
   display: none;
 }
 
 .sidebar,
-.inspector {
+.inspector,
+.control-dock {
   background: #151a1f;
   border-color: #27313a;
   border-style: solid;
@@ -49,6 +51,10 @@ button {
 }
 
 .inspector {
+  border-width: 0 0 0 1px;
+}
+
+.control-dock {
   border-width: 0 0 0 1px;
 }
 
@@ -132,6 +138,41 @@ section + section {
   color: #7f8c96;
   font-size: 11px;
   text-transform: uppercase;
+}
+
+.control-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.control-group h3 {
+  color: #7f8c96;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.control-list {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.control-list button {
+  background: #202830;
+  border: 1px solid #344350;
+  border-radius: 6px;
+  color: #eef2f4;
+  cursor: pointer;
+  font-size: 12px;
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.control-list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .section-note {

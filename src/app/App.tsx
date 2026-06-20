@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { ControlPalette } from "./components/ControlPalette";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { PageNavigator } from "./components/PageNavigator";
 import { TeletextCanvas } from "./components/TeletextCanvas";
@@ -7,6 +8,7 @@ import { TemplateLibrary } from "./components/TemplateLibrary";
 import { ValidationPanel } from "./components/ValidationPanel";
 import {
   applyTemplateCommand,
+  insertControlCodeCommand,
   insertTextCommand
 } from "../core";
 import {
@@ -56,6 +58,30 @@ export function App() {
     setSelection({
       rowIndex: selection.rowIndex,
       column: Math.min(selection.column + value.length, 39)
+    });
+  }
+
+  function commitControlCode(byte: number) {
+    if (!selection) {
+      return;
+    }
+
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        insertControlCodeCommand(
+          editor.service.id,
+          editor.page.id,
+          editor.subpage.id,
+          selection.rowIndex,
+          selection.column,
+          byte
+        )
+      )
+    );
+    setSelection({
+      rowIndex: selection.rowIndex,
+      column: Math.min(selection.column + 1, 39)
     });
   }
 
@@ -141,6 +167,12 @@ export function App() {
         validationIssues={editor.validationIssues}
         selection={selection}
       />
+      <aside className="control-dock" aria-label="Control palette">
+        <ControlPalette
+          disabled={!selection}
+          onControlSelect={commitControlCode}
+        />
+      </aside>
     </main>
   );
 }

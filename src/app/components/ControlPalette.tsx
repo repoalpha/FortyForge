@@ -1,0 +1,49 @@
+import type { ControlCode } from "../../core";
+import { LEVEL_1_CONTROL_CODES } from "../../core";
+
+interface ControlPaletteProps {
+  disabled: boolean;
+  onControlSelect: (byte: number) => void;
+}
+
+const PALETTE_CATEGORIES = ["colour", "graphics", "background", "size"] as const;
+
+export function ControlPalette({ disabled, onControlSelect }: ControlPaletteProps) {
+  const controls = LEVEL_1_CONTROL_CODES.filter((control) =>
+    PALETTE_CATEGORIES.includes(control.category as (typeof PALETTE_CATEGORIES)[number])
+  );
+
+  const groupedControls = controls.reduce<Record<string, ControlCode[]>>((groups, control) => {
+    groups[control.category] = [...(groups[control.category] ?? []), control];
+    return groups;
+  }, {});
+
+  return (
+    <section>
+      <h2>Control palette</h2>
+      <p className="section-note">
+        Insert visible ETSI control bytes into the selected cell.
+      </p>
+      <div className="control-groups">
+        {PALETTE_CATEGORIES.map((category) => (
+          <div className="control-group" key={category}>
+            <h3>{category}</h3>
+            <div className="control-list">
+              {(groupedControls[category] ?? []).map((control) => (
+                <button
+                  disabled={disabled}
+                  key={control.id}
+                  onClick={() => onControlSelect(control.byte)}
+                  title={`${control.mnemonic} byte ${control.byte}`}
+                  type="button"
+                >
+                  {control.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}

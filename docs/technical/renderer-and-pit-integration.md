@@ -14,6 +14,10 @@ Studio Mode is the default laptop layout. It keeps the page navigator and templa
 
 Playout Mode is for dual-screen or live use. The clean display should be detachable or fullscreen, while the editing tools remain on the operator screen. In v1 this can be represented as a layout mode in the app; later Tauri can open a second window bound to the same page model.
 
+## Studio Control Editing
+
+Studio Mode should expose control characters as deliberate editable objects rather than hidden formatting. The first implementation provides a manual control palette for Level 1 colour, graphics, background, and size control bytes. Later studio helpers can auto-insert required controls at row or region boundaries when a user changes foreground/background intent, while still leaving the resulting bytes visible and editable.
+
 ## Renderer Boundary
 
 The renderer boundary should use deterministic data:
