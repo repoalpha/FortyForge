@@ -42,6 +42,26 @@ function rowFromText(sourceRow: TeletextRow, text: string): TeletextRow {
   };
 }
 
+function isAuthoredCell(cell: Cell) {
+  return cell.kind !== "empty";
+}
+
+function rowFromTextPreservingAuthoredCells(sourceRow: TeletextRow, text: string): TeletextRow {
+  const generated = rowFromText(sourceRow, text);
+
+  return {
+    ...generated,
+    cells: generated.cells.map((cell, column) =>
+      isAuthoredCell(sourceRow.cells[column])
+        ? {
+            ...sourceRow.cells[column],
+            column
+          }
+        : cell
+    )
+  };
+}
+
 export function composePageHeaderRow(
   page: Page,
   _subpage: Subpage,
@@ -54,7 +74,7 @@ export function composePageHeaderRow(
     return sourceRow;
   }
 
-  return rowFromText(sourceRow, makeHeaderText(page, now));
+  return rowFromTextPreservingAuthoredCells(sourceRow, makeHeaderText(page, now));
 }
 
 export function composeExportRows(

@@ -13,6 +13,15 @@ This note is a working summary for FortyForge implementation. It paraphrases the
 - Steady, end box, normal size, contiguous mosaics, and release mosaics are row-start defaults.
 - Attribute effects persist until another relevant attribute changes them or the row ends.
 
+## X/0 Header And Display Rows
+
+- Packet X/0 is the page header packet. It contains page address, control bits, and 32 data bytes normally intended for display.
+- The header packet's control bits include suppress-header and inhibit-display behavior; these are packet metadata, not ordinary visible row cells in the editor.
+- FortyForge currently models the visible editor page as 25 rows: `X/0` plus rows `1` to `24`.
+- Row labels in the editor should show `X/0` for the page header and `1` to `24` for body display rows.
+- Column labels in the editor should show author-facing positions `01` to `40`, while internal arrays remain zero-based `0` to `39`.
+- In local clock mode, generated header text and time may fill empty X/0 cells, but authored characters/control codes on X/0 must be preserved so the row remains editable.
+
 ## Spacing Attributes
 
 - Control codes occupy character cells.

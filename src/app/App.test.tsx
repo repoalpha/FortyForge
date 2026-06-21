@@ -32,6 +32,10 @@ describe("App", () => {
     expect(screen.getByRole("complementary", { name: "Tool dock" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Text" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Mosaic" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("column-ruler")).toHaveTextContent("01");
+    expect(screen.getByTestId("column-ruler")).toHaveTextContent("40");
+    expect(screen.getByTestId("row-ruler")).toHaveTextContent("X/0");
+    expect(screen.getByTestId("row-ruler")).toHaveTextContent("24");
 
     expect(screen.getByText("0 validation issues")).toBeInTheDocument();
     expect(screen.getByText("25 packet preview records")).toBeInTheDocument();
@@ -133,6 +137,44 @@ describe("App", () => {
       name: "Row 1, column 2, byte 65"
     })).toHaveTextContent("A");
     expect(screen.getByText("Control codes")).toBeInTheDocument();
+  });
+
+  it("allows authored controls on the X/0 header row in local clock mode", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 0, column 1, byte 80"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Alpha red" }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 0, column 1, byte 1"
+    })).toHaveTextContent("");
+    expect(screen.getByRole("gridcell", {
+      name: "Row 0, column 2, byte 49"
+    })).toHaveTextContent("1");
+  });
+
+  it("does not insert double-height controls on the header or final display row", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 0, column 1, byte 80"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Double height" }));
+
+    expect(screen.queryByRole("gridcell", {
+      name: "Row 0, column 1, byte 13"
+    })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 24, column 1, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Double height" }));
+
+    expect(screen.queryByRole("gridcell", {
+      name: "Row 24, column 1, byte 13"
+    })).not.toBeInTheDocument();
   });
 
   it("deletes the selected cell and compacts the row left", () => {

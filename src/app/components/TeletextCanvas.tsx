@@ -112,6 +112,7 @@ export function TeletextCanvas({
   const gridRef = useRef<HTMLDivElement | null>(null);
   const isPaintingRef = useRef(false);
   const columns = Array.from({ length: COLUMN_COUNT }, (_, index) => index + 1);
+  const rowLabels = Array.from({ length: ROW_COUNT }, (_, index) => index === 0 ? "X/0" : String(index));
   const viewport = useMemo(
     () =>
       createTeletextViewport({
@@ -255,52 +256,60 @@ export function TeletextCanvas({
 
   return (
     <div className="canvas-frame">
-      <div className="column-ruler" aria-hidden="true">
-        {columns.map((column) => (
-          <span key={column}>{column % 10}</span>
-        ))}
-      </div>
-      <canvas
-        aria-label="PIT framebuffer preview"
-        className="teletext-framebuffer"
-        height={viewport.height}
-        onClick={(event) => {
-          const target = hitTestCanvasPointer(event);
+      <div className="teletext-frame-grid">
+        <div className="ruler-corner" aria-hidden="true" />
+        <div className="column-ruler" data-testid="column-ruler" aria-hidden="true">
+          {columns.map((column) => (
+            <span key={column}>{column.toString().padStart(2, "0")}</span>
+          ))}
+        </div>
+        <div className="row-ruler" data-testid="row-ruler" aria-hidden="true">
+          {rowLabels.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+        <canvas
+          aria-label="PIT framebuffer preview"
+          className="teletext-framebuffer"
+          height={viewport.height}
+          onClick={(event) => {
+            const target = hitTestCanvasPointer(event);
 
-          if (target) {
-            selectCell(target.hit);
-          }
-        }}
-        onContextMenu={(event) => {
-          if (activeTool === "mosaic") {
-            event.preventDefault();
-          }
-        }}
-        onPointerDown={(event) => {
-          isPaintingRef.current = activeTool === "mosaic";
-          applyMosaicPointerEdit(event);
-        }}
-        onPointerLeave={() => {
-          isPaintingRef.current = false;
-        }}
-        onPointerMove={(event) => {
-          if (isPaintingRef.current && event.buttons !== 0) {
-            applyMosaicPointerEdit(event);
-          }
-        }}
-        onPointerUp={() => {
-          isPaintingRef.current = false;
-        }}
-        onMouseDown={(event) => {
-          if (typeof window.PointerEvent === "undefined") {
+            if (target) {
+              selectCell(target.hit);
+            }
+          }}
+          onContextMenu={(event) => {
+            if (activeTool === "mosaic") {
+              event.preventDefault();
+            }
+          }}
+          onPointerDown={(event) => {
             isPaintingRef.current = activeTool === "mosaic";
             applyMosaicPointerEdit(event);
-          }
-        }}
-        ref={canvasRef}
-        role="img"
-        width={viewport.width}
-      />
+          }}
+          onPointerLeave={() => {
+            isPaintingRef.current = false;
+          }}
+          onPointerMove={(event) => {
+            if (isPaintingRef.current && event.buttons !== 0) {
+              applyMosaicPointerEdit(event);
+            }
+          }}
+          onPointerUp={() => {
+            isPaintingRef.current = false;
+          }}
+          onMouseDown={(event) => {
+            if (typeof window.PointerEvent === "undefined") {
+              isPaintingRef.current = activeTool === "mosaic";
+              applyMosaicPointerEdit(event);
+            }
+          }}
+          ref={canvasRef}
+          role="img"
+          width={viewport.width}
+        />
+      </div>
       <div
         className="teletext-grid teletext-access-grid"
         onKeyDown={(event) => {

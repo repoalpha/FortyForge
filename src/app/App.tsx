@@ -35,6 +35,7 @@ import type { EditorTool } from "./components/TeletextCanvas";
 
 type LayoutMode = "studio" | "playout";
 const LOCAL_PROJECT_KEY = "fortyforge.currentProject";
+const ILLEGAL_DOUBLE_HEIGHT_ROWS = new Set([0, 24]);
 
 function loadInitialHistory() {
   const savedProject = window.localStorage.getItem(LOCAL_PROJECT_KEY);
@@ -138,6 +139,13 @@ export function App() {
     const controlCode = getControlCodeByByte(byte);
 
     if (activeTool === "text" && controlCode?.category === "graphics") {
+      return;
+    }
+
+    if (
+      (byte === 0x0d || byte === 0x0f) &&
+      ILLEGAL_DOUBLE_HEIGHT_ROWS.has(selection.rowIndex)
+    ) {
       return;
     }
 

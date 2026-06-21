@@ -53,4 +53,39 @@ describe("composePageHeaderRow", () => {
     expect(text).toContain("INDEX");
     expect(text.endsWith("03:04")).toBe(true);
   });
+
+  it("preserves authored X/0 cells while filling empty cells in local mode", () => {
+    const project = createDefaultProject();
+    const withHeaderControl = applyEditorCommand(
+      project,
+      setCellCommand("service-default", "page-100", "page-100-subpage-0000", 0, 0, {
+        column: 0,
+        kind: "control",
+        byte: 0x01,
+        controlCode: {
+          id: "alpha-red",
+          byte: 0x01,
+          mnemonic: "ALPHA_RED",
+          category: "colour",
+          label: "Alpha red",
+          supportedLevels: ["1", "1.5", "2.5", "3.5"],
+          description: "Select alphanumeric mode with red foreground."
+        },
+        annotations: []
+      })
+    );
+    const page = withHeaderControl.services[0].pages[0];
+    const subpage = page.subpages[0];
+
+    page.metadata.header.clockMode = "local";
+
+    const header = composePageHeaderRow(page, subpage, subpage.rows[0], new Date(2026, 5, 20, 3, 4));
+
+    expect(header.cells[0]).toEqual(expect.objectContaining({
+      kind: "control",
+      byte: 0x01
+    }));
+    expect(header.cells[1].character?.value).toBe("1");
+    expect(header.cells[39].character?.value).toBe("4");
+  });
 });
