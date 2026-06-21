@@ -57,6 +57,11 @@ export function ToolDock({
         .length,
     0
   );
+  const clockSourceLabel = page.metadata.header.clockMode === "local"
+    ? "Local clock"
+    : page.metadata.header.clockMode === "none"
+      ? "No clock"
+      : "Original row";
 
   return (
     <aside className="tool-dock" aria-label="Tool dock">
@@ -119,13 +124,21 @@ export function ToolDock({
 
       <section>
         <h2>X/0 Header</h2>
+        <p className="section-note">Clock slot: columns 33-40. Current: {clockSourceLabel}.</p>
         <div className="segmented-control" aria-label="X/0 header clock source">
           <button
             aria-pressed={page.metadata.header.clockMode === "local"}
             onClick={() => onHeaderClockModeChange("local")}
             type="button"
           >
-            Local machine
+            Local clock
+          </button>
+          <button
+            aria-pressed={page.metadata.header.clockMode === "none"}
+            onClick={() => onHeaderClockModeChange("none")}
+            type="button"
+          >
+            No clock
           </button>
           <button
             aria-pressed={page.metadata.header.clockMode === "original"}

@@ -43,7 +43,7 @@ describe("composePageHeaderRow", () => {
       page,
       subpage,
       subpage.rows[0],
-      new Date(2026, 5, 20, 3, 4)
+      new Date(2026, 5, 20, 3, 4, 5)
     );
     const text = header.cells.map((cell) => cell.character?.value ?? " ").join("");
 
@@ -51,7 +51,27 @@ describe("composePageHeaderRow", () => {
     expect(header.cells).toHaveLength(40);
     expect(text).toContain("P100");
     expect(text).toContain("INDEX");
-    expect(text.endsWith("03:04")).toBe(true);
+    expect(text.slice(32)).toBe("03:04:05");
+  });
+
+  it("can leave the X/0 clock slot blank when no generated clock is wanted", () => {
+    const project = createDefaultProject();
+    const page = project.services[0].pages[0];
+    const subpage = page.subpages[0];
+
+    page.metadata.header.clockMode = "none";
+
+    const header = composePageHeaderRow(
+      page,
+      subpage,
+      subpage.rows[0],
+      new Date(2026, 5, 20, 3, 4, 5)
+    );
+    const text = header.cells.map((cell) => cell.character?.value ?? " ").join("");
+
+    expect(text).toContain("P100");
+    expect(text).toContain("INDEX");
+    expect(text.slice(32)).toBe("        ");
   });
 
   it("preserves authored X/0 cells while filling empty cells in local mode", () => {
@@ -79,13 +99,18 @@ describe("composePageHeaderRow", () => {
 
     page.metadata.header.clockMode = "local";
 
-    const header = composePageHeaderRow(page, subpage, subpage.rows[0], new Date(2026, 5, 20, 3, 4));
+    const header = composePageHeaderRow(
+      page,
+      subpage,
+      subpage.rows[0],
+      new Date(2026, 5, 20, 3, 4, 5)
+    );
 
     expect(header.cells[0]).toEqual(expect.objectContaining({
       kind: "control",
       byte: 0x01
     }));
     expect(header.cells[1].character?.value).toBe("1");
-    expect(header.cells[39].character?.value).toBe("4");
+    expect(header.cells[39].character?.value).toBe("5");
   });
 });

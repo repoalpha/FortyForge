@@ -20,7 +20,9 @@ This note is a working summary for FortyForge implementation. It paraphrases the
 - FortyForge currently models the visible editor page as 25 rows: `X/0` plus rows `1` to `24`.
 - Row labels in the editor should show `X/0` for the page header and `1` to `24` for body display rows.
 - Column labels in the editor should show author-facing positions `01` to `40`, while internal arrays remain zero-based `0` to `39`.
-- In local clock mode, generated header text and time may fill empty X/0 cells, but authored characters/control codes on X/0 must be preserved so the row remains editable.
+- ETSI page-header packet X/0 reserves the final eight data bytes for the real-time clock in normal services. FortyForge maps that service clock slot to visible columns `33` to `40` in the 40-column editor view.
+- Header clock modes are `local` (generate an `HH:MM:SS` clock into columns `33` to `40`), `none` (leave the generated clock slot blank), and `original` (show the authored/imported row exactly).
+- In local or no-clock mode, generated header text and the clock slot may fill empty X/0 cells, but authored characters/control codes on X/0 must be preserved so the row remains editable.
 
 ## Spacing Attributes
 

@@ -20,6 +20,7 @@ import {
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
   paintMosaicCommand,
+  type PageHeaderSettings,
   saveCurrentPageAsTemplateCommand,
   setPageHeaderClockModeCommand
 } from "../core";
@@ -259,7 +260,7 @@ export function App() {
     setSelection({ rowIndex, column });
   }
 
-  function commitHeaderClockMode(mode: "original" | "local") {
+  function commitHeaderClockMode(mode: PageHeaderSettings["clockMode"]) {
     setHistory((currentHistory) =>
       commitEditorHistory(
         currentHistory,

@@ -96,7 +96,7 @@ export interface PageMetadata {
 }
 
 export interface PageHeaderSettings {
-  clockMode: "original" | "local";
+  clockMode: "original" | "local" | "none";
 }
 
 export interface PageLink {

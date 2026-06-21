@@ -28,6 +28,11 @@ export function InspectorPanel({
         .length,
     0
   );
+  const clockSourceLabel = page.metadata.header.clockMode === "local"
+    ? "Local clock"
+    : page.metadata.header.clockMode === "none"
+      ? "No clock"
+      : "Original row";
 
   return (
     <aside className="inspector" aria-label="Inspector">
@@ -64,9 +69,7 @@ export function InspectorPanel({
         <dl className="inspector-list">
           <div>
             <dt>Clock source</dt>
-            <dd>
-              {page.metadata.header.clockMode === "local" ? "Local machine" : "Original row"}
-            </dd>
+            <dd>{clockSourceLabel}</dd>
           </div>
         </dl>
         <div className="segmented-control" aria-label="X/0 header clock source">
@@ -75,7 +78,14 @@ export function InspectorPanel({
             onClick={() => onHeaderClockModeChange("local")}
             type="button"
           >
-            Local machine
+            Local clock
+          </button>
+          <button
+            aria-pressed={page.metadata.header.clockMode === "none"}
+            onClick={() => onHeaderClockModeChange("none")}
+            type="button"
+          >
+            No clock
           </button>
           <button
             aria-pressed={page.metadata.header.clockMode === "original"}

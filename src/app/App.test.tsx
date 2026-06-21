@@ -372,10 +372,17 @@ describe("App", () => {
     })).toBeInTheDocument();
   });
 
-  it("switches the X/0 header clock between local and original modes", () => {
+  it("switches the X/0 header clock between local, none, and original modes", () => {
     render(<App />);
 
-    expect(screen.getByRole("button", { name: "Local machine" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Local clock" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "No clock" }));
+
+    expect(screen.getByRole("button", { name: "No clock" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );

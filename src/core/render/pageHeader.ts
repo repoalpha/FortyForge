@@ -1,6 +1,7 @@
-import type { Cell, Page, Subpage, TeletextRow } from "../model/types";
+import type { Cell, Page, PageHeaderSettings, Subpage, TeletextRow } from "../model/types";
 
 const HEADER_WIDTH = 40;
+const CLOCK_WIDTH = 8;
 
 function textCell(column: number, value: string): Cell {
   return {
@@ -18,16 +19,25 @@ function textCell(column: number, value: string): Cell {
 function formatClock(now: Date): string {
   const hours = now.getHours().toString().padStart(2, "0");
   const minutes = now.getMinutes().toString().padStart(2, "0");
+  const seconds = now.getSeconds().toString().padStart(2, "0");
 
-  return `${hours}:${minutes}`;
+  return `${hours}:${minutes}:${seconds}`;
 }
 
-function makeHeaderText(page: Page, now: Date): string {
-  const clock = formatClock(now);
+function makeHeaderText(
+  page: Page,
+  now: Date,
+  clockMode: Exclude<PageHeaderSettings["clockMode"], "original">
+): string {
+  const clock = clockMode === "local" ? formatClock(now) : " ".repeat(CLOCK_WIDTH);
   const identity = `P${page.pageNumber}`;
   const title = page.title.toUpperCase().replace(/\s+/g, " ").slice(0, 22);
+  const headerTitle = `${identity} ${title}`;
 
-  return `${identity} ${title}`.padEnd(HEADER_WIDTH - clock.length, " ") + clock;
+  return headerTitle
+    .padEnd(HEADER_WIDTH - CLOCK_WIDTH, " ")
+    .slice(0, HEADER_WIDTH - CLOCK_WIDTH)
+    + clock;
 }
 
 function rowFromText(sourceRow: TeletextRow, text: string): TeletextRow {
@@ -74,7 +84,7 @@ export function composePageHeaderRow(
     return sourceRow;
   }
 
-  return rowFromTextPreservingAuthoredCells(sourceRow, makeHeaderText(page, now));
+  return rowFromTextPreservingAuthoredCells(sourceRow, makeHeaderText(page, now, clockMode));
 }
 
 export function composeExportRows(
