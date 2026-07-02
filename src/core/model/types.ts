@@ -40,6 +40,8 @@ export interface Project {
   metadata: ProjectMetadata;
   services: Service[];
   templates: Template[];
+  mosaicAlphabets: MosaicAlphabet[];
+  artworkBlocks: ArtworkBlock[];
   glyphSets: GlyphSet[];
   contentSources: ContentSource[];
   contentSnapshots: ContentSnapshot[];
@@ -135,6 +137,7 @@ export interface Cell {
   controlCode?: ControlCode;
   mosaic?: MosaicCell;
   drcs?: DrcsCell;
+  background?: TeletextColourRef;
   annotations: CellAnnotation[];
 }
 
@@ -213,6 +216,75 @@ export interface Glyph {
   height: 10 | 5;
   bitsPerPixel: 1 | 2 | 4;
   pixels: number[];
+}
+
+export type MosaicGlyphSource = "captured" | "generated" | "edited";
+
+export interface MosaicGlyphCell {
+  sixelMask: number;
+  separated: boolean;
+  foreground: TeletextColourRef;
+  background: TeletextColourRef;
+}
+
+export interface MosaicGlyph {
+  character: string;
+  width: number;
+  height: number;
+  cells: MosaicGlyphCell[];
+  source: MosaicGlyphSource;
+  note?: string;
+}
+
+export interface MosaicAlphabet {
+  id: string;
+  name: string;
+  description: string;
+  sourceReference?: SourceReference;
+  cellWidth: number;
+  cellHeight: number;
+  spacingColumns: number;
+  glyphs: Record<string, MosaicGlyph>;
+  pixelGlyphs?: Record<string, string[]>;
+  pixelSpacingColumns?: number;
+}
+
+export type ArtworkBlockCategory = "masthead" | "logo" | "divider" | "letter" | "panel" | "other";
+
+export interface CellBlock {
+  width: number;
+  height: number;
+  cells: Cell[][];
+  source: {
+    rowIndex: number;
+    column: number;
+  };
+}
+
+export interface ArtworkBlock {
+  id: string;
+  name: string;
+  description?: string;
+  category: ArtworkBlockCategory;
+  assignedCharacter?: string;
+  width: number;
+  height: number;
+  cells: Cell[][];
+  source?: {
+    pageNumber?: string;
+    templateId?: string;
+    rowIndex: number;
+    column: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CellRectangle {
+  startRow: number;
+  startColumn: number;
+  endRow: number;
+  endColumn: number;
 }
 
 export interface Template {

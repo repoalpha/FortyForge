@@ -1,7 +1,20 @@
 import { applyTemplate } from "../templates/applyTemplate";
 import { getControlCodeByByte } from "../standards/controlCodes";
+import { captureMosaicGlyph, layoutMosaicText } from "../mosaicAlphabet/mosaicAlphabet";
 import { renderLevel1Row } from "../render/renderLevel1";
-import type { Cell, PageHeaderSettings, Project, Subpage, TeletextColourRef } from "./types";
+import type {
+  ArtworkBlock,
+  ArtworkBlockCategory,
+  CellRectangle,
+  Cell,
+  CellBlock,
+  MosaicAlphabet,
+  PageHeaderSettings,
+  Project,
+  Subpage,
+  TeletextColourRef,
+  TeletextRow
+} from "./types";
 
 export interface CellLocation {
   serviceId: string;
@@ -24,6 +37,30 @@ export interface EditorHistory {
 }
 
 export type MosaicSixelOperation = "set" | "clear" | "toggle";
+
+export interface CaptureMosaicGlyphOptions {
+  alphabetId?: string;
+  alphabetName: string;
+  character: string;
+  bounds: CellRectangle;
+  spacingColumns?: number;
+}
+
+export interface StampMosaicTextOptions {
+  alphabetId: string;
+  text: string;
+  rowIndex: number;
+  column: number;
+}
+
+export interface SaveCellBlockAsArtworkOptions {
+  id?: string;
+  name: string;
+  description?: string;
+  category: ArtworkBlockCategory;
+  assignedCharacter?: string;
+  now?: Date;
+}
 
 function cloneProject(project: Project): Project {
   return structuredClone(project) as Project;
@@ -56,7 +93,44 @@ function findMutableRow(project: Project, location: CellLocation) {
   return subpage?.rows.find((item) => item.index === location.rowIndex);
 }
 
-function textCell(column: number, value: string): Cell {
+function findMutableSubpage(
+  project: Project,
+  serviceId: string,
+  pageId: string,
+  subpageId: string
+) {
+  const service = project.services.find((item) => item.id === serviceId);
+  const page = service?.pages.find((item) => item.id === pageId);
+
+  return page?.subpages.find((item) => item.id === subpageId);
+}
+
+function normalizedRectangle(bounds: CellRectangle) {
+  return {
+    startRow: Math.min(bounds.startRow, bounds.endRow),
+    endRow: Math.max(bounds.startRow, bounds.endRow),
+    startColumn: Math.min(bounds.startColumn, bounds.endColumn),
+    endColumn: Math.max(bounds.startColumn, bounds.endColumn)
+  };
+}
+
+function isRectangleInsidePage(bounds: ReturnType<typeof normalizedRectangle>) {
+  return (
+    bounds.startRow >= 0
+    && bounds.startColumn >= 0
+    && bounds.endRow < 25
+    && bounds.endColumn < 40
+  );
+}
+
+function cloneCellForColumn(cell: Cell, column: number): Cell {
+  return {
+    ...structuredClone(cell),
+    column
+  } as Cell;
+}
+
+function textCell(column: number, value: string, background?: TeletextColourRef): Cell {
   return {
     column,
     kind: "character",
@@ -65,15 +139,17 @@ function textCell(column: number, value: string): Cell {
       value,
       charset: "G0"
     },
+    background,
     annotations: []
   };
 }
 
-function emptyCell(column: number): Cell {
+function emptyCell(column: number, background?: TeletextColourRef): Cell {
   return {
     column,
     kind: "empty",
     byte: 0x20,
+    background,
     annotations: []
   };
 }
@@ -102,6 +178,18 @@ function makeSubpage(index: number): Subpage {
       priority: "normal"
     }
   };
+}
+
+function normalizeRows(rows: TeletextRow[]) {
+  return rows.slice(0, 25).map((row, rowIndex) => ({
+    ...row,
+    index: rowIndex,
+    label: row.label || (rowIndex === 0 ? "Header" : `Row ${rowIndex}`),
+    cells: row.cells.slice(0, 40).map((cell, column) => ({
+      ...cell,
+      column
+    }))
+  }));
 }
 
 function controlCell(column: number, byte: number): Cell {
@@ -215,18 +303,29 @@ export function insertTextCommand(
     label: "Insert text",
     apply: (project) => {
       return [...text].reduce(
-        (currentProject, value, offset) =>
-          updateCell(
+        (currentProject, value, offset) => {
+          const targetColumn = column + offset;
+          const row = findMutableRow(currentProject, {
+            serviceId,
+            pageId,
+            subpageId,
+            rowIndex,
+            column: targetColumn
+          });
+          const background = row?.cells[targetColumn]?.background;
+
+          return updateCell(
             currentProject,
             {
               serviceId,
               pageId,
               subpageId,
               rowIndex,
-              column: column + offset
+              column: targetColumn
             },
-            textCell(column + offset, value)
-          ),
+            textCell(targetColumn, value, background)
+          );
+        },
         project
       );
     }
@@ -272,6 +371,31 @@ export function insertControlCodeWithRowShiftCommand(
   };
 }
 
+export function insertBlankSpacerWithRowShiftCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number
+): EditorCommand {
+  return {
+    id: "insert-blank-spacer-row-shift",
+    label: "Insert blank spacer",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, { serviceId, pageId, subpageId, rowIndex, column });
+
+      if (!row || column < 0 || column >= row.cells.length) {
+        return project;
+      }
+
+      row.cells = shiftRowRightWithCells(row.cells, column, [emptyCell(column)]);
+
+      return next;
+    }
+  };
+}
+
 export function insertBackgroundColourWithRowShiftCommand(
   serviceId: string,
   pageId: string,
@@ -308,6 +432,38 @@ export function insertBackgroundColourWithRowShiftCommand(
   };
 }
 
+export function paintCellBackgroundCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number,
+  colourIndex: number
+): EditorCommand {
+  return {
+    id: "paint-cell-background",
+    label: "Paint cell background",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, { serviceId, pageId, subpageId, rowIndex, column });
+
+      if (!row || column < 0 || column >= row.cells.length) {
+        return project;
+      }
+
+      row.cells[column] = {
+        ...row.cells[column],
+        background: {
+          palette: "level1",
+          index: colourIndex
+        }
+      };
+
+      return next;
+    }
+  };
+}
+
 export function deleteCellWithRowShiftCommand(
   serviceId: string,
   pageId: string,
@@ -327,10 +483,47 @@ export function deleteCellWithRowShiftCommand(
       }
 
       const helperStart = generatedBackgroundHelperStart(row.cells, column);
+      const current = row.cells[column];
+
+      if (helperStart === undefined && current.background && current.kind !== "empty") {
+        row.cells[column] = emptyCell(column, current.background);
+
+        return next;
+      }
 
       row.cells = helperStart === undefined
         ? shiftRowLeftFromColumn(row.cells, column)
         : shiftRowLeftFromColumn(row.cells, helperStart, 3);
+
+      return next;
+    }
+  };
+}
+
+export function clearRowCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number
+): EditorCommand {
+  return {
+    id: "clear-row",
+    label: "Clear row",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, {
+        serviceId,
+        pageId,
+        subpageId,
+        rowIndex,
+        column: 0
+      });
+
+      if (!row) {
+        return project;
+      }
+
+      row.cells = Array.from({ length: 40 }, (_, column) => emptyCell(column));
 
       return next;
     }
@@ -345,20 +538,38 @@ export function paintMosaicCommand(
   column: number,
   sixelMask: number,
   foreground: TeletextColourRef = { palette: "level1", index: 7 },
-  background: TeletextColourRef = { palette: "level1", index: 0 }
+  background?: TeletextColourRef
 ): EditorCommand {
-  return setCellCommand(serviceId, pageId, subpageId, rowIndex, column, {
-    column,
-    kind: "mosaic",
-    byte: 0x40 | (sixelMask & 0x3f),
-    mosaic: {
-      separated: false,
-      sixelMask,
-      foreground,
-      background
-    },
-    annotations: []
-  });
+  return {
+    id: "paint-mosaic",
+    label: "Paint mosaic",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, { serviceId, pageId, subpageId, rowIndex, column });
+
+      if (!row || column < 0 || column >= row.cells.length) {
+        return project;
+      }
+
+      const current = row.cells[column];
+      const currentState = renderLevel1Row(row).cells[column];
+
+      row.cells[column] = {
+        column,
+        kind: "mosaic",
+        byte: 0x40 | (sixelMask & 0x3f),
+        mosaic: {
+          separated: false,
+          sixelMask,
+          foreground,
+          background: background ?? mosaicEditBackground(row, column, current)
+        },
+        annotations: []
+      };
+
+      return next;
+    }
+  };
 }
 
 function mosaicMaskForCell(cell: Cell) {
@@ -373,6 +584,18 @@ function mosaicMaskForCell(cell: Cell) {
   return 0;
 }
 
+function mosaicEditBackground(row: TeletextRow, column: number, current: Cell) {
+  const rowState = renderLevel1Row(row, { useCellBackgroundColours: true }).cells[column];
+
+  if (current.background || rowState.background.index !== 0) {
+    return rowState.background;
+  }
+
+  return current.kind === "mosaic"
+    ? current.mosaic?.background ?? rowState.background
+    : rowState.background;
+}
+
 export function editMosaicSixelCommand(
   serviceId: string,
   pageId: string,
@@ -380,7 +603,9 @@ export function editMosaicSixelCommand(
   rowIndex: number,
   column: number,
   sixelIndex: number,
-  operation: MosaicSixelOperation
+  operation: MosaicSixelOperation,
+  foreground?: TeletextColourRef,
+  background?: TeletextColourRef
 ): EditorCommand {
   const bit = 1 << sixelIndex;
 
@@ -396,6 +621,7 @@ export function editMosaicSixelCommand(
       }
 
       const current = row.cells[column];
+      const currentState = renderLevel1Row(row).cells[column];
       const currentMask = mosaicMaskForCell(current);
       const nextMask = operation === "set"
         ? currentMask | bit
@@ -411,11 +637,342 @@ export function editMosaicSixelCommand(
         mosaic: {
           separated: mosaic?.separated ?? false,
           sixelMask: nextMask & 0x3f,
-          foreground: mosaic?.foreground ?? { palette: "level1", index: 7 },
-          background: mosaic?.background ?? { palette: "level1", index: 0 }
+          foreground: foreground ?? mosaic?.foreground ?? currentState.foreground,
+          background: background ?? mosaicEditBackground(row, column, current)
         },
         annotations: current.annotations ?? []
       };
+
+      return next;
+    }
+  };
+}
+
+export function setMosaicForegroundCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number,
+  foreground: TeletextColourRef
+): EditorCommand {
+  return {
+    id: "set-mosaic-foreground",
+    label: "Set mosaic foreground",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const row = findMutableRow(next, { serviceId, pageId, subpageId, rowIndex, column });
+
+      if (!row || column < 0 || column >= row.cells.length) {
+        return project;
+      }
+
+      const current = row.cells[column];
+
+      if (current.kind !== "mosaic" || !current.mosaic) {
+        return project;
+      }
+
+      row.cells[column] = {
+        ...current,
+        mosaic: {
+          ...current.mosaic,
+          foreground
+        }
+      };
+
+      return next;
+    }
+  };
+}
+
+export function copyCellsFromRectangle(
+  project: Project,
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  bounds: CellRectangle
+): CellBlock | undefined {
+  const rectangle = normalizedRectangle(bounds);
+
+  if (!isRectangleInsidePage(rectangle)) {
+    return undefined;
+  }
+
+  const subpage = findMutableSubpage(project, serviceId, pageId, subpageId);
+
+  if (!subpage) {
+    return undefined;
+  }
+
+  const cells: Cell[][] = [];
+
+  for (let rowIndex = rectangle.startRow; rowIndex <= rectangle.endRow; rowIndex += 1) {
+    const row = subpage.rows.find((item) => item.index === rowIndex);
+
+    if (!row) {
+      return undefined;
+    }
+
+    cells.push(
+      row.cells
+        .slice(rectangle.startColumn, rectangle.endColumn + 1)
+        .map((cell, columnOffset) => cloneCellForColumn(cell, columnOffset))
+    );
+  }
+
+  return {
+    width: rectangle.endColumn - rectangle.startColumn + 1,
+    height: rectangle.endRow - rectangle.startRow + 1,
+    cells,
+    source: {
+      rowIndex: rectangle.startRow,
+      column: rectangle.startColumn
+    }
+  };
+}
+
+export function stampCellBlockCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  block: CellBlock,
+  target: { rowIndex: number; column: number }
+): EditorCommand {
+  return {
+    id: "stamp-cell-block",
+    label: "Stamp cell block",
+    apply: (project) => {
+      if (
+        target.rowIndex < 0
+        || target.column < 0
+        || target.rowIndex + block.height > 25
+        || target.column + block.width > 40
+      ) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+      const subpage = findMutableSubpage(next, serviceId, pageId, subpageId);
+
+      if (!subpage) {
+        return project;
+      }
+
+      for (let rowOffset = 0; rowOffset < block.height; rowOffset += 1) {
+        const row = subpage.rows.find((item) => item.index === target.rowIndex + rowOffset);
+
+        if (!row) {
+          return project;
+        }
+
+        for (let columnOffset = 0; columnOffset < block.width; columnOffset += 1) {
+          row.cells[target.column + columnOffset] = cloneCellForColumn(
+            block.cells[rowOffset][columnOffset],
+            target.column + columnOffset
+          );
+        }
+      }
+
+      return next;
+    }
+  };
+}
+
+export function clearCellRectangleCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  bounds: CellRectangle
+): EditorCommand {
+  return {
+    id: "clear-cell-rectangle",
+    label: "Clear cell rectangle",
+    apply: (project) => {
+      const rectangle = normalizedRectangle(bounds);
+
+      if (!isRectangleInsidePage(rectangle)) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+      const subpage = findMutableSubpage(next, serviceId, pageId, subpageId);
+
+      if (!subpage) {
+        return project;
+      }
+
+      for (let rowIndex = rectangle.startRow; rowIndex <= rectangle.endRow; rowIndex += 1) {
+        const row = subpage.rows.find((item) => item.index === rowIndex);
+
+        if (!row) {
+          return project;
+        }
+
+        for (
+          let column = rectangle.startColumn;
+          column <= rectangle.endColumn;
+          column += 1
+        ) {
+          row.cells[column] = emptyCell(column);
+        }
+      }
+
+      return next;
+    }
+  };
+}
+
+export function saveCellBlockAsArtworkCommand(
+  block: CellBlock,
+  options: SaveCellBlockAsArtworkOptions
+): EditorCommand {
+  return {
+    id: "save-cell-block-as-artwork",
+    label: "Save cell block as artwork",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const timestamp = (options.now ?? new Date()).toISOString();
+      const artwork: ArtworkBlock = {
+        id: options.id ?? `artwork-block-${next.artworkBlocks.length + 1}`,
+        name: options.name,
+        description: options.description,
+        category: options.category,
+        assignedCharacter: options.assignedCharacter,
+        width: block.width,
+        height: block.height,
+        cells: block.cells.map((row) =>
+          row.map((cell, column) => cloneCellForColumn(cell, column))
+        ),
+        source: {
+          rowIndex: block.source.rowIndex,
+          column: block.source.column
+        },
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+
+      next.artworkBlocks.push(artwork);
+
+      return next;
+    }
+  };
+}
+
+function createMosaicAlphabet(
+  id: string,
+  name: string,
+  glyphWidth: number,
+  glyphHeight: number,
+  spacingColumns: number
+): MosaicAlphabet {
+  return {
+    id,
+    name,
+    description: "Captured mosaic lettering alphabet.",
+    cellWidth: glyphWidth,
+    cellHeight: glyphHeight,
+    spacingColumns,
+    glyphs: {}
+  };
+}
+
+export function captureMosaicGlyphCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  options: CaptureMosaicGlyphOptions
+): EditorCommand {
+  return {
+    id: "capture-mosaic-glyph",
+    label: "Capture mosaic glyph",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const subpage = findMutableSubpage(next, serviceId, pageId, subpageId);
+
+      if (!subpage) {
+        return project;
+      }
+
+      const glyph = captureMosaicGlyph(subpage.rows, options.bounds, options.character);
+      const alphabetId = options.alphabetId ?? `mosaic-alphabet-${next.mosaicAlphabets.length + 1}`;
+      let alphabet = next.mosaicAlphabets.find((item) => item.id === alphabetId);
+
+      if (!alphabet) {
+        alphabet = createMosaicAlphabet(
+          alphabetId,
+          options.alphabetName,
+          glyph.width,
+          glyph.height,
+          options.spacingColumns ?? 1
+        );
+        next.mosaicAlphabets.push(alphabet);
+      }
+
+      alphabet.glyphs[glyph.character] = glyph;
+
+      return next;
+    }
+  };
+}
+
+export function stampMosaicTextCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  options: StampMosaicTextOptions
+): EditorCommand {
+  return {
+    id: "stamp-mosaic-text",
+    label: "Stamp mosaic text",
+    apply: (project) => {
+      const alphabet = project.mosaicAlphabets.find((item) => item.id === options.alphabetId);
+
+      if (!alphabet) {
+        return project;
+      }
+
+      const layout = layoutMosaicText(alphabet, options.text);
+
+      if (
+        layout.missing.length > 0
+        || options.rowIndex < 0
+        || options.column < 0
+        || options.rowIndex + layout.height > 25
+        || options.column + layout.width > 40
+      ) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+      const subpage = findMutableSubpage(next, serviceId, pageId, subpageId);
+
+      if (!subpage) {
+        return project;
+      }
+
+      for (const layoutCell of layout.cells) {
+        const rowIndex = options.rowIndex + layoutCell.rowOffset;
+        const column = options.column + layoutCell.columnOffset;
+        const row = subpage.rows.find((item) => item.index === rowIndex);
+
+        if (!row || column < 0 || column >= row.cells.length) {
+          return project;
+        }
+
+        row.cells[column] = {
+          column,
+          kind: "mosaic",
+          byte: 0x40 | (layoutCell.cell.sixelMask & 0x3f),
+          mosaic: {
+            separated: layoutCell.cell.separated,
+            sixelMask: layoutCell.cell.sixelMask & 0x3f,
+            foreground: layoutCell.cell.foreground,
+            background: layoutCell.cell.background
+          },
+          annotations: []
+        };
+      }
 
       return next;
     }
@@ -469,6 +1026,31 @@ export function saveCurrentPageAsTemplateCommand(
   };
 }
 
+export function deleteCustomTemplateCommand(templateId: string): EditorCommand {
+  return {
+    id: "delete-custom-template",
+    label: "Delete custom template",
+    apply: (project) => {
+      if (!project.templates.some((template) => template.id === templateId)) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+
+      next.templates = next.templates.filter((template) => template.id !== templateId);
+      next.services.forEach((service) => {
+        service.pages.forEach((page) => {
+          if (page.metadata.templateId === templateId) {
+            page.metadata.templateId = undefined;
+          }
+        });
+      });
+
+      return next;
+    }
+  };
+}
+
 export function addSubpageCommand(serviceId: string, pageId: string): EditorCommand {
   return {
     id: "add-subpage",
@@ -483,6 +1065,36 @@ export function addSubpageCommand(serviceId: string, pageId: string): EditorComm
       }
 
       page.subpages.push(makeSubpage(page.subpages.length));
+
+      return next;
+    }
+  };
+}
+
+export function replaceSubpageRowsCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rows: TeletextRow[]
+): EditorCommand {
+  return {
+    id: "replace-subpage-rows",
+    label: "Replace subpage rows",
+    apply: (project) => {
+      if (rows.length !== 25 || rows.some((row) => row.cells.length !== 40)) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+      const service = next.services.find((item) => item.id === serviceId);
+      const page = service?.pages.find((item) => item.id === pageId);
+      const subpage = page?.subpages.find((item) => item.id === subpageId);
+
+      if (!subpage) {
+        return project;
+      }
+
+      subpage.rows = normalizeRows(structuredClone(rows) as TeletextRow[]);
 
       return next;
     }

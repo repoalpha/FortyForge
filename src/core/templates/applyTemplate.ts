@@ -5,6 +5,21 @@ function cloneRows(rows: TeletextRow[]): TeletextRow[] {
   return structuredClone(rows) as TeletextRow[];
 }
 
+function headerClockModeForTemplate(
+  templateId: string,
+  currentClockMode: Project["services"][number]["pages"][number]["metadata"]["header"]["clockMode"]
+) {
+  if (templateId === "blank-page") {
+    return "original";
+  }
+
+  if (templateId === "header-page") {
+    return "local";
+  }
+
+  return currentClockMode;
+}
+
 export function applyTemplate(
   project: Project,
   serviceId: string,
@@ -36,6 +51,10 @@ export function applyTemplate(
             ...page,
             metadata: {
               ...page.metadata,
+              header: {
+                ...page.metadata.header,
+                clockMode: headerClockModeForTemplate(templateId, page.metadata.header.clockMode)
+              },
               templateId
             },
             subpages: page.subpages.map((subpage, index) => ({

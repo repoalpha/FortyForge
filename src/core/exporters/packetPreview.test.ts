@@ -32,6 +32,6 @@ describe("exportPacketPreview", () => {
     const headerText = String.fromCharCode(...(headerPacket?.payloadBytes ?? []));
 
     expect(headerText).toContain("P100");
-    expect(headerText.slice(32)).toBe("03:04:05");
+    expect(headerText.slice(32)).toBe("03:04/05");
   });
 });

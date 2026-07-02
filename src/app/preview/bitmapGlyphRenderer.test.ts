@@ -30,18 +30,28 @@ class RecordingContext {
 }
 
 describe("bitmap glyph renderer", () => {
-  it("returns a deterministic SAA5050 5 by 10 glyph with 6-pixel advance", () => {
+  it("returns a deterministic PIT-shaped SAA5050 12 by 20 glyph", () => {
     expect(getBitmapGlyph("A")).toEqual([
-      "000000",
-      "001000",
-      "010100",
-      "100010",
-      "100010",
-      "111110",
-      "100010",
-      "100010",
-      "000000",
-      "000000"
+      "000000000000",
+      "000000000000",
+      "000001100000",
+      "000011110000",
+      "000111111000",
+      "001110011100",
+      "011100001110",
+      "011000000110",
+      "011000000110",
+      "011000000110",
+      "011111111110",
+      "011111111110",
+      "011000000110",
+      "011000000110",
+      "011000000110",
+      "011000000110",
+      "000000000000",
+      "000000000000",
+      "000000000000",
+      "000000000000"
     ]);
   });
 
@@ -58,11 +68,40 @@ describe("bitmap glyph renderer", () => {
     });
 
     expect(context.rects.slice(0, 3)).toEqual([
-      { fillStyle: "#ffffff", height: 2, width: 2, x: 4, y: 2 },
-      { fillStyle: "#ffffff", height: 2, width: 2, x: 2, y: 4 },
-      { fillStyle: "#ffffff", height: 2, width: 2, x: 6, y: 4 }
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 5, y: 2 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 6, y: 2 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 4, y: 3 }
     ]);
-    expect(context.rects).toHaveLength(16);
+    expect(context.rects).toHaveLength(72);
+  });
+
+  it("draws PIT-shaped SAA5050 glyphs as native 12 by 20 bitmaps", () => {
+    const context = new RecordingContext();
+
+    drawBitmapGlyph(context, {
+      cellHeight: 20,
+      cellWidth: 12,
+      colour: "#ffffff",
+      value: "A",
+      x: 0,
+      y: 0
+    });
+
+    expect(context.rects.slice(0, 12)).toEqual([
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 5, y: 2 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 6, y: 2 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 4, y: 3 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 5, y: 3 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 6, y: 3 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 7, y: 3 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 3, y: 4 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 4, y: 4 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 5, y: 4 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 6, y: 4 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 7, y: 4 },
+      { fillStyle: "#ffffff", height: 1, width: 1, x: 8, y: 4 }
+    ]);
+    expect(context.rects).toHaveLength(72);
   });
 
   it("stretches SAA5050 glyph pixels vertically in double-height cells", () => {
@@ -78,28 +117,38 @@ describe("bitmap glyph renderer", () => {
     });
 
     expect(context.rects.slice(0, 3)).toEqual([
-      { fillStyle: "#ffffff", height: 4, width: 2, x: 4, y: 4 },
-      { fillStyle: "#ffffff", height: 4, width: 2, x: 2, y: 8 },
-      { fillStyle: "#ffffff", height: 4, width: 2, x: 6, y: 8 }
+      { fillStyle: "#ffffff", height: 2, width: 1, x: 5, y: 4 },
+      { fillStyle: "#ffffff", height: 2, width: 1, x: 6, y: 4 },
+      { fillStyle: "#ffffff", height: 2, width: 1, x: 4, y: 6 }
     ]);
   });
 
   it("includes the SAA5050 English pound glyph", () => {
     expect(getBitmapGlyph("£")).toEqual([
-      "000000",
-      "001100",
-      "010010",
-      "010000",
-      "111000",
-      "010000",
-      "010000",
-      "111110",
-      "000000",
-      "000000"
+      "000000000000",
+      "000000000000",
+      "000001111000",
+      "000011111100",
+      "000111001110",
+      "000110000110",
+      "000110000000",
+      "000110000000",
+      "011111100000",
+      "011111100000",
+      "000110000000",
+      "000110000000",
+      "000110000000",
+      "000110000000",
+      "011111111110",
+      "011111111110",
+      "000000000000",
+      "000000000000",
+      "000000000000",
+      "000000000000"
     ]);
   });
 
-  it("draws teletext mosaics as crisp 2 by 3 blocks", () => {
+  it("draws contiguous teletext mosaics as full-height 2 by 3 blocks", () => {
     const context = new RecordingContext();
 
     drawMosaicGlyph(context, {

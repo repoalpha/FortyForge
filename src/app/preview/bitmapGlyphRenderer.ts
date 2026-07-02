@@ -1,4 +1,8 @@
-import { getSaa5050Glyph } from "./saa5050Font";
+import {
+  getSaa5050Glyph,
+  SAA5050_GLYPH_HEIGHT,
+  SAA5050_GLYPH_WIDTH
+} from "./saa5050Font";
 
 export type BitmapGlyph = string[];
 
@@ -35,6 +39,11 @@ const FALLBACK_GLYPH: BitmapGlyph = [
   "00000",
   "00100"
 ];
+
+const PIT_GLYPH_WIDTH = 12;
+const PIT_GLYPH_HEIGHT = 20;
+const PIT_SOURCE_SCALE = 2;
+const PIT_LEFT_MARGIN = 1;
 
 // Last-resort fallback for characters outside the SAA5050 English set.
 const BITMAP_GLYPHS: Record<string, BitmapGlyph> = {
@@ -412,7 +421,81 @@ const BITMAP_GLYPHS: Record<string, BitmapGlyph> = {
 export function getBitmapGlyph(value: string): BitmapGlyph {
   const glyph = getSaa5050Glyph(value) ?? getSaa5050Glyph(value.toUpperCase());
 
-  return glyph ? [...glyph] : normalizeBitmapGlyph(BITMAP_GLYPHS[value.toUpperCase()] ?? FALLBACK_GLYPH);
+  return glyph
+    ? rasterizePitSaa5050Glyph(glyph)
+    : normalizeBitmapGlyph(BITMAP_GLYPHS[value.toUpperCase()] ?? FALLBACK_GLYPH);
+}
+
+function emptyPitGlyph() {
+  return Array.from({ length: PIT_GLYPH_HEIGHT }, () =>
+    Array.from({ length: PIT_GLYPH_WIDTH }, () => false)
+  );
+}
+
+function sourceOn(glyph: readonly string[], x: number, y: number) {
+  if (x < 0 || x >= SAA5050_GLYPH_WIDTH || y < 0 || y >= SAA5050_GLYPH_HEIGHT) {
+    return false;
+  }
+
+  return glyph[y][x] === "1";
+}
+
+function serializePitGlyph(pixels: boolean[][]): BitmapGlyph {
+  return pixels.map((row) => row.map((pixel) => pixel ? "1" : "0").join(""));
+}
+
+export function rasterizePitSaa5050Glyph(sourceGlyph: readonly string[]): BitmapGlyph {
+  const pixels = emptyPitGlyph();
+
+  for (let sourceY = 0; sourceY < SAA5050_GLYPH_HEIGHT; sourceY += 1) {
+    for (let sourceX = 0; sourceX < SAA5050_GLYPH_WIDTH; sourceX += 1) {
+      if (!sourceOn(sourceGlyph, sourceX, sourceY)) {
+        continue;
+      }
+
+      for (let dy = 0; dy < PIT_SOURCE_SCALE; dy += 1) {
+        for (let dx = 0; dx < PIT_SOURCE_SCALE; dx += 1) {
+          pixels[sourceY * PIT_SOURCE_SCALE + dy][
+            PIT_LEFT_MARGIN + sourceX * PIT_SOURCE_SCALE + dx
+          ] = true;
+        }
+      }
+    }
+  }
+
+  for (let sourceY = 0; sourceY < SAA5050_GLYPH_HEIGHT; sourceY += 1) {
+    for (let sourceX = 0; sourceX < SAA5050_GLYPH_WIDTH; sourceX += 1) {
+      if (sourceOn(sourceGlyph, sourceX, sourceY)) {
+        continue;
+      }
+
+      const left = PIT_LEFT_MARGIN + sourceX * PIT_SOURCE_SCALE;
+      const top = sourceY * PIT_SOURCE_SCALE;
+      const west = sourceOn(sourceGlyph, sourceX - 1, sourceY);
+      const east = sourceOn(sourceGlyph, sourceX + 1, sourceY);
+      const north = sourceOn(sourceGlyph, sourceX, sourceY - 1);
+      const south = sourceOn(sourceGlyph, sourceX, sourceY + 1);
+      const northwest = sourceOn(sourceGlyph, sourceX - 1, sourceY - 1);
+      const northeast = sourceOn(sourceGlyph, sourceX + 1, sourceY - 1);
+      const southwest = sourceOn(sourceGlyph, sourceX - 1, sourceY + 1);
+      const southeast = sourceOn(sourceGlyph, sourceX + 1, sourceY + 1);
+
+      if (west && south && !southwest) {
+        pixels[top + 1][left] = true;
+      }
+      if (east && south && !southeast) {
+        pixels[top + 1][left + 1] = true;
+      }
+      if (west && north && !northwest) {
+        pixels[top][left] = true;
+      }
+      if (east && north && !northeast) {
+        pixels[top][left + 1] = true;
+      }
+    }
+  }
+
+  return serializePitGlyph(pixels);
 }
 
 function normalizeBitmapGlyph(glyph: BitmapGlyph): BitmapGlyph {
@@ -448,16 +531,16 @@ export function drawBitmapGlyph(context: BitmapDrawContext, options: DrawBitmapG
 }
 
 export function drawMosaicGlyph(context: BitmapDrawContext, options: DrawMosaicGlyphOptions): void {
-  const blockWidth = Math.floor(options.cellWidth / 2);
-  const blockHeights = [
-    Math.floor(options.cellHeight / 3),
-    Math.floor(options.cellHeight / 3) + (options.cellHeight % 3 > 0 ? 1 : 0),
-    Math.floor(options.cellHeight / 3) + (options.cellHeight % 3 > 1 ? 1 : 0)
+  const blockX = [
+    options.x,
+    options.x + Math.floor(options.cellWidth / 2),
+    options.x + options.cellWidth
   ];
   const blockY = [
     options.y,
-    options.y + blockHeights[0],
-    options.y + blockHeights[0] + blockHeights[1]
+    options.y + Math.floor(options.cellHeight / 3),
+    options.y + Math.floor((options.cellHeight * 2) / 3),
+    options.y + options.cellHeight
   ];
   const inset = options.separated ? 1 : 0;
 
@@ -470,12 +553,16 @@ export function drawMosaicGlyph(context: BitmapDrawContext, options: DrawMosaicG
 
     const blockColumn = sixel % 2;
     const blockRow = Math.floor(sixel / 2);
+    const left = blockX[blockColumn] + inset;
+    const top = blockY[blockRow] + inset;
+    const width = blockX[blockColumn + 1] - blockX[blockColumn] - inset * 2;
+    const height = blockY[blockRow + 1] - blockY[blockRow] - inset * 2;
 
     context.fillRect(
-      options.x + blockColumn * blockWidth + inset,
-      blockY[blockRow] + inset,
-      blockWidth - inset * 2,
-      blockHeights[blockRow] - inset * 2
+      left,
+      top,
+      width,
+      height
     );
   }
 }

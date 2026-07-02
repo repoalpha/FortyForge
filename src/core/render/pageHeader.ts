@@ -21,7 +21,7 @@ function formatClock(now: Date): string {
   const minutes = now.getMinutes().toString().padStart(2, "0");
   const seconds = now.getSeconds().toString().padStart(2, "0");
 
-  return `${hours}:${minutes}:${seconds}`;
+  return `${hours}:${minutes}/${seconds}`;
 }
 
 function makeHeaderText(
@@ -52,17 +52,18 @@ function rowFromText(sourceRow: TeletextRow, text: string): TeletextRow {
   };
 }
 
-function isAuthoredCell(cell: Cell) {
-  return cell.kind !== "empty";
+function isAuthoredHeaderControl(cell: Cell) {
+  return cell.kind === "control";
 }
 
 function rowFromTextPreservingAuthoredCells(sourceRow: TeletextRow, text: string): TeletextRow {
   const generated = rowFromText(sourceRow, text);
+  const clockStartColumn = HEADER_WIDTH - CLOCK_WIDTH;
 
   return {
     ...generated,
     cells: generated.cells.map((cell, column) =>
-      isAuthoredCell(sourceRow.cells[column])
+      column < clockStartColumn && isAuthoredHeaderControl(sourceRow.cells[column])
         ? {
             ...sourceRow.cells[column],
             column

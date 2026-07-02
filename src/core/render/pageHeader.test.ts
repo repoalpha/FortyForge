@@ -51,7 +51,7 @@ describe("composePageHeaderRow", () => {
     expect(header.cells).toHaveLength(40);
     expect(text).toContain("P100");
     expect(text).toContain("INDEX");
-    expect(text.slice(32)).toBe("03:04:05");
+    expect(text.slice(32)).toBe("03:04/05");
   });
 
   it("can leave the X/0 clock slot blank when no generated clock is wanted", () => {
@@ -74,7 +74,7 @@ describe("composePageHeaderRow", () => {
     expect(text.slice(32)).toBe("        ");
   });
 
-  it("preserves authored X/0 cells while filling empty cells in local mode", () => {
+  it("preserves authored X/0 cells before the clock slot while filling empty cells in local mode", () => {
     const project = createDefaultProject();
     const withHeaderControl = applyEditorCommand(
       project,
@@ -112,5 +112,90 @@ describe("composePageHeaderRow", () => {
     }));
     expect(header.cells[1].character?.value).toBe("1");
     expect(header.cells[39].character?.value).toBe("5");
+  });
+
+  it("lets local and no-clock modes own the X/0 clock slot over imported screenshot text", () => {
+    const project = createDefaultProject();
+    const clockText = "20:49/50";
+    let withImportedClock = project;
+
+    for (let index = 0; index < clockText.length; index += 1) {
+      const value = clockText[index];
+
+      withImportedClock = applyEditorCommand(
+        withImportedClock,
+        setCellCommand("service-default", "page-100", "page-100-subpage-0000", 0, 32 + index, {
+          column: 32 + index,
+          kind: "character",
+          byte: value.charCodeAt(0),
+          character: { value, charset: "G0" },
+          annotations: []
+        })
+      );
+    }
+
+    const page = withImportedClock.services[0].pages[0];
+    const subpage = page.subpages[0];
+
+    page.metadata.header.clockMode = "local";
+
+    const localHeader = composePageHeaderRow(
+      page,
+      subpage,
+      subpage.rows[0],
+      new Date(2026, 5, 20, 3, 4, 5)
+    );
+    const localText = localHeader.cells.map((cell) => cell.character?.value ?? " ").join("");
+
+    expect(localText.slice(32)).toBe("03:04/05");
+
+    page.metadata.header.clockMode = "none";
+
+    const noClockHeader = composePageHeaderRow(
+      page,
+      subpage,
+      subpage.rows[0],
+      new Date(2026, 5, 20, 3, 4, 5)
+    );
+    const noClockText = noClockHeader.cells.map((cell) => cell.character?.value ?? " ").join("");
+
+    expect(noClockText.slice(32)).toBe("        ");
+  });
+
+  it("lets local mode replace imported screenshot text before the clock slot", () => {
+    const project = createDefaultProject();
+    const importedText = "PP102IN";
+    let withImportedHeader = project;
+
+    for (let index = 0; index < importedText.length; index += 1) {
+      const value = importedText[index];
+
+      withImportedHeader = applyEditorCommand(
+        withImportedHeader,
+        setCellCommand("service-default", "page-100", "page-100-subpage-0000", 0, index, {
+          column: index,
+          kind: "character",
+          byte: value.charCodeAt(0),
+          character: { value, charset: "G0" },
+          annotations: []
+        })
+      );
+    }
+
+    const page = withImportedHeader.services[0].pages[0];
+    const subpage = page.subpages[0];
+
+    page.metadata.header.clockMode = "local";
+
+    const header = composePageHeaderRow(
+      page,
+      subpage,
+      subpage.rows[0],
+      new Date(2026, 5, 20, 3, 4, 5)
+    );
+    const text = header.cells.map((cell) => cell.character?.value ?? " ").join("");
+
+    expect(text.startsWith("P100 INDEX")).toBe(true);
+    expect(text).not.toContain("PP102IN");
   });
 });

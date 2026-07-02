@@ -1,4 +1,8 @@
 import type { Cell, Project, TeletextRow } from "./types";
+import {
+  createCitynewsCompactMastheadAlphabet,
+  createCitynewsMastheadAlphabet
+} from "../mosaicAlphabet/devPixelcastAlphabet";
 
 const ROW_COUNT = 25;
 const COLUMN_COUNT = 40;
@@ -97,6 +101,11 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
       }
     ],
     templates: [],
+    mosaicAlphabets: [
+      createCitynewsMastheadAlphabet(),
+      createCitynewsCompactMastheadAlphabet()
+    ],
+    artworkBlocks: [],
     glyphSets: [],
     contentSources: [],
     contentSnapshots: [],

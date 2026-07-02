@@ -3,19 +3,31 @@ export {
   applyEditorCommand,
   addSubpageCommand,
   applyTemplateCommand,
+  captureMosaicGlyphCommand,
+  clearCellRectangleCommand,
+  clearRowCommand,
   commitEditorCommand,
+  copyCellsFromRectangle,
   createEditorHistory,
   deleteCellWithRowShiftCommand,
+  deleteCustomTemplateCommand,
   editMosaicSixelCommand,
   insertControlCodeCommand,
   insertBackgroundColourWithRowShiftCommand,
+  insertBlankSpacerWithRowShiftCommand,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
   paintMosaicCommand,
+  paintCellBackgroundCommand,
   redo,
+  replaceSubpageRowsCommand,
+  saveCellBlockAsArtworkCommand,
   saveCurrentPageAsTemplateCommand,
   setPageHeaderClockModeCommand,
   setCellCommand,
+  setMosaicForegroundCommand,
+  stampCellBlockCommand,
+  stampMosaicTextCommand,
   undo
 } from "./model/commands";
 export { exportNativeProject } from "./exporters/nativeProject";
@@ -24,6 +36,12 @@ export { exportPacketPreview } from "./exporters/packetPreview";
 export { exportTti } from "./exporters/tti";
 export { importNativeProject } from "./importers/nativeProject";
 export { importTti } from "./importers/tti";
+export { captureMosaicGlyph, layoutMosaicText } from "./mosaicAlphabet/mosaicAlphabet";
+export {
+  createCitynewsCompactMastheadAlphabet,
+  createCitynewsMastheadAlphabet,
+  createDevPixelcastAlphabet
+} from "./mosaicAlphabet/devPixelcastAlphabet";
 export { projectSchema } from "./model/schema";
 export { renderLevel1Row } from "./render/renderLevel1";
 export { composeExportRows, composePageHeaderRow } from "./render/pageHeader";
@@ -35,6 +53,7 @@ export { BUILT_IN_TEMPLATES, getBuiltInTemplate } from "./templates/builtInTempl
 export { validateProject } from "./validation/validateProject";
 export type * from "./model/types";
 export type * from "./model/commands";
+export type * from "./mosaicAlphabet/mosaicAlphabet";
 export type * from "./deploy/pitPushPlan";
 export type * from "./exporters/packetPreview";
 export type * from "./render/types";

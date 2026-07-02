@@ -22,9 +22,11 @@ export const projectSchema = z.object({
   }),
   services: z.array(z.unknown()),
   templates: z.array(z.unknown()),
-  glyphSets: z.array(z.unknown()),
-  contentSources: z.array(z.unknown()),
-  contentSnapshots: z.array(z.unknown()),
-  exportProfiles: z.array(z.unknown()),
-  transmissionProfiles: z.array(z.unknown())
+  mosaicAlphabets: z.array(z.unknown()).default([]),
+  artworkBlocks: z.array(z.unknown()).default([]),
+  glyphSets: z.array(z.unknown()).default([]),
+  contentSources: z.array(z.unknown()).default([]),
+  contentSnapshots: z.array(z.unknown()).default([]),
+  exportProfiles: z.array(z.unknown()).default([]),
+  transmissionProfiles: z.array(z.unknown()).default([])
 });

@@ -94,6 +94,13 @@ function template(
 export const BUILT_IN_TEMPLATES: Template[] = [
   template("blank-page", "Blank page", "A clean 40 by 25 teletext page.", "blank", []),
   template(
+    "header-page",
+    "Header page",
+    "A clean page with only the generated X/0 header.",
+    "blank",
+    []
+  ),
+  template(
     "index-page",
     "Index page",
     "A page 100-style menu with headline and link rows.",

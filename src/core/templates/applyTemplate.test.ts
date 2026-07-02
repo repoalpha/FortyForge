@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createDefaultProject } from "../model/projectFactory";
+import { composeExportRows } from "../render/pageHeader";
 import { applyTemplate } from "./applyTemplate";
 import { BUILT_IN_TEMPLATES } from "./builtInTemplates";
 
@@ -9,6 +10,7 @@ describe("built-in templates", () => {
     expect(BUILT_IN_TEMPLATES.map((template) => template.id)).toEqual(
       expect.arrayContaining([
         "blank-page",
+        "header-page",
         "index-page",
         "article-page",
         "weather-page",
@@ -71,5 +73,38 @@ describe("applyTemplate", () => {
     expect(updatedRows[1].cells).toHaveLength(40);
     expect(updatedRows[1].cells.some((cell) => cell.kind === "character")).toBe(true);
     expect(project.services[0].pages[0].metadata.templateId).toBeUndefined();
+  });
+
+  it("applies the blank page as a fully blank mockup canvas", () => {
+    const project = createDefaultProject();
+    const updated = applyTemplate(project, "service-default", "page-100", "blank-page");
+    const updatedPage = updated.services[0].pages[0];
+    const updatedRows = updatedPage.subpages[0].rows;
+    const exportRows = composeExportRows(updatedPage, updatedPage.subpages[0]);
+
+    expect(updatedPage.metadata.header.clockMode).toBe("original");
+    expect(updatedRows.every((row) =>
+      row.cells.every((cell) => cell.kind === "empty" && cell.byte === 0x20)
+    )).toBe(true);
+    expect(exportRows.every((row) =>
+      row.cells.every((cell) => cell.kind === "empty" && cell.byte === 0x20)
+    )).toBe(true);
+  });
+
+  it("applies the header page as a generated header with blank body rows", () => {
+    const project = createDefaultProject();
+    const updated = applyTemplate(project, "service-default", "page-100", "header-page");
+    const updatedPage = updated.services[0].pages[0];
+    const updatedRows = updatedPage.subpages[0].rows;
+    const exportRows = composeExportRows(updatedPage, updatedPage.subpages[0]);
+
+    expect(updatedPage.metadata.header.clockMode).toBe("local");
+    expect(updatedRows.every((row) =>
+      row.cells.every((cell) => cell.kind === "empty" && cell.byte === 0x20)
+    )).toBe(true);
+    expect(exportRows[0].cells.some((cell) => cell.kind === "character")).toBe(true);
+    expect(exportRows.slice(1).every((row) =>
+      row.cells.every((cell) => cell.kind === "empty" && cell.byte === 0x20)
+    )).toBe(true);
   });
 });

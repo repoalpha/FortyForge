@@ -4,6 +4,11 @@ import type { Level1CellRenderState, RenderedLevel1Cell, RenderedLevel1Row } fro
 const BLACK: TeletextColourRef = { palette: "level1", index: 0 };
 const WHITE: TeletextColourRef = { palette: "level1", index: 7 };
 
+export interface RenderLevel1Options {
+  useCellBackgroundColours?: boolean;
+  useMosaicCellColours?: boolean;
+}
+
 function initialState(): Level1CellRenderState {
   return {
     mode: "text",
@@ -93,11 +98,25 @@ function cellValue(cell: Cell): string {
   return "";
 }
 
-function renderCell(cell: Cell, state: Level1CellRenderState): RenderedLevel1Cell {
+function renderCell(
+  cell: Cell,
+  state: Level1CellRenderState,
+  options: RenderLevel1Options
+): RenderedLevel1Cell {
   const visible = cell.kind === "character" || cell.kind === "mosaic" || cell.kind === "drcs";
+  const foreground = options.useMosaicCellColours && cell.kind === "mosaic"
+    ? cell.mosaic?.foreground ?? state.foreground
+    : state.foreground;
+  const background = options.useCellBackgroundColours && cell.background
+    ? cell.background
+    : options.useMosaicCellColours && cell.kind === "mosaic"
+      ? cell.mosaic?.background ?? state.background
+      : state.background;
 
   return {
     ...state,
+    foreground,
+    background,
     column: cell.column,
     source: cell,
     visible,
@@ -105,7 +124,10 @@ function renderCell(cell: Cell, state: Level1CellRenderState): RenderedLevel1Cel
   };
 }
 
-export function renderLevel1Row(row: TeletextRow): RenderedLevel1Row {
+export function renderLevel1Row(
+  row: TeletextRow,
+  options: RenderLevel1Options = {}
+): RenderedLevel1Row {
   let state = initialState();
   const cells: RenderedLevel1Cell[] = [];
 
@@ -114,7 +136,7 @@ export function renderLevel1Row(row: TeletextRow): RenderedLevel1Row {
       state = applyControlCode(state, cell.controlCode);
     }
 
-    cells.push(renderCell(cell, state));
+    cells.push(renderCell(cell, state, options));
   }
 
   return {
