@@ -262,6 +262,13 @@ section + section {
   padding: 7px;
 }
 
+.mosaic-pattern-grid button.active,
+.mosaic-pattern-grid button[aria-pressed="true"] {
+  background: #f2d15c;
+  border-color: #f2d15c;
+  color: #101214;
+}
+
 .mosaic-pattern-grid button:disabled {
   cursor: not-allowed;
   opacity: 0.72;

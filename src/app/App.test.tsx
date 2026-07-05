@@ -522,6 +522,39 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Graphics red" })).not.toBeDisabled();
   });
 
+  it("enables graphics colour controls when opening the Mosaic tab directly", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+
+    expect(screen.getByRole("button", { name: "Graphics blue" })).not.toBeDisabled();
+  });
+
+  it("keeps a selected mosaic preset highlighted until Freestyle is chosen", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+
+    const freestyle = screen.getByRole("button", { name: "Freestyle" });
+    const topRow = screen.getByRole("button", { name: "Mosaic top row" });
+
+    expect(freestyle).toHaveAttribute("aria-pressed", "true");
+    expect(topRow).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(topRow);
+
+    expect(topRow).toHaveAttribute("aria-pressed", "true");
+    expect(freestyle).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(freestyle);
+
+    expect(freestyle).toHaveAttribute("aria-pressed", "true");
+    expect(topRow).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("shows screenshot import controls in Import Trace mode", () => {
     render(<App />);
 
@@ -1053,6 +1086,98 @@ describe("App", () => {
 
     expect(screen.getByRole("gridcell", {
       name: "Row 1, column 1, byte 127"
+    })).toBeInTheDocument();
+  });
+
+  it("stamps a locked mosaic preset from a framebuffer click", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic top row" }));
+    fireEvent.mouseDown(screen.getByRole("img", { name: "PIT framebuffer preview" }), {
+      button: 0,
+      buttons: 1,
+      clientX: 1,
+      clientY: 21
+    });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 67"
+    })).toBeInTheDocument();
+  });
+
+  it("stamps a locked mosaic preset from a grid cell click", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic right half" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 32"
+    }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 106"
+    })).toBeInTheDocument();
+  });
+
+  it("repeats the locked mosaic preset to the right with ArrowRight", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic top row" }));
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 67"
+    })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 67"
+    })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 3, byte 67"
+    })).toBeInTheDocument();
+  });
+
+  it("does not wrap locked mosaic preset stamping past the right row edge", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 40, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic top row" }));
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 40, byte 67"
+    })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 2, column 1, byte 32"
+    })).toBeInTheDocument();
+  });
+
+  it("repeats the locked mosaic preset to the left with ArrowLeft", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 3, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic bottom row" }));
+    fireEvent.keyDown(grid, { key: "ArrowLeft" });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 3, byte 112"
+    })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 112"
     })).toBeInTheDocument();
   });
 

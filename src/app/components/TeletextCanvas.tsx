@@ -15,6 +15,7 @@ import {
 } from "../preview/teletextViewport";
 import type { TeletextPreviewProfileId } from "../preview/teletextViewport";
 import type { CellSelection } from "../state/editorStore";
+import type { MosaicPaintMode } from "./ToolDock";
 
 const COLUMN_COUNT = 40;
 const ROW_COUNT = 25;
@@ -32,6 +33,7 @@ interface TeletextCanvasProps {
     block: CellBlock;
     target: CellSelection;
   };
+  mosaicPaintMode?: MosaicPaintMode;
   previewProfileId?: TeletextPreviewProfileId;
   rectangleSelection?: CellRectangle;
   onBlockPreviewTargetChange?: (selection: CellSelection) => void;
@@ -47,6 +49,7 @@ interface TeletextCanvasProps {
     sixelIndex: number,
     operation: MosaicSixelOperation
   ) => void;
+  onMosaicPresetPaint?: (rowIndex: number, column: number, sixelMask: number) => void;
   onRedo?: () => void;
   onTextInput: (value: string) => void;
   onUndo?: () => void;
@@ -136,6 +139,7 @@ function operationFromPointerEvent(event: CanvasPointerLikeEvent) {
 export function TeletextCanvas({
   activeTool = "text",
   blockPreview,
+  mosaicPaintMode = { kind: "freestyle" },
   previewProfileId = "studio-large",
   rectangleSelection,
   rows,
@@ -144,6 +148,7 @@ export function TeletextCanvas({
   onBlockStamp,
   onCellSelect,
   onCellDelete,
+  onMosaicPresetPaint,
   onMosaicSixelEdit,
   onRectangleClear,
   onRectangleSelect,
@@ -363,8 +368,22 @@ export function TeletextCanvas({
 
     selectCell(target.hit);
 
-    if (activeTool === "mosaic" && onMosaicSixelEdit) {
-      event.preventDefault();
+    if (activeTool !== "mosaic") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (mosaicPaintMode.kind === "preset") {
+      onMosaicPresetPaint?.(
+        target.hit.rowIndex,
+        target.hit.column,
+        mosaicPaintMode.mask
+      );
+      return;
+    }
+
+    if (onMosaicSixelEdit) {
       onMosaicSixelEdit(
         target.hit.rowIndex,
         target.hit.column,
@@ -372,6 +391,26 @@ export function TeletextCanvas({
         operationFromPointerEvent(event)
       );
     }
+  }
+
+  function stampPresetAtSelectionOffset(offset: -1 | 1) {
+    if (
+      activeTool !== "mosaic"
+      || mosaicPaintMode.kind !== "preset"
+      || !selection
+      || !onMosaicPresetPaint
+    ) {
+      return false;
+    }
+
+    const nextColumn = selection.column + offset;
+
+    if (nextColumn < 0 || nextColumn > 39) {
+      return true;
+    }
+
+    onMosaicPresetPaint(selection.rowIndex, nextColumn, mosaicPaintMode.mask);
+    return true;
   }
 
   return (
@@ -483,6 +522,15 @@ export function TeletextCanvas({
             return;
           }
 
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            const handled = stampPresetAtSelectionOffset(event.key === "ArrowRight" ? 1 : -1);
+
+            if (handled) {
+              event.preventDefault();
+              return;
+            }
+          }
+
           if (event.key === "Escape" && activeTool === "blocks") {
             event.preventDefault();
             onRectangleClear?.();
@@ -555,7 +603,17 @@ export function TeletextCanvas({
                     : ""
                 ].filter(Boolean).join(" ")}
                 key={`${row.index}-${cell.column}`}
-                onClick={() => selectCell({ rowIndex: row.index, column: cell.column })}
+                onClick={() => {
+                  const nextSelection = { rowIndex: row.index, column: cell.column };
+
+                  if (activeTool === "mosaic" && mosaicPaintMode.kind === "preset") {
+                    onMosaicPresetPaint?.(row.index, cell.column, mosaicPaintMode.mask);
+                    gridRef.current?.focus({ preventScroll: true });
+                    return;
+                  }
+
+                  selectCell(nextSelection);
+                }}
                 role="gridcell"
                 type="button"
               >

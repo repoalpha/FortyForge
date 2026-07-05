@@ -36,6 +36,7 @@ interface ToolDockProps {
   artworkBlocks: ArtworkBlock[];
   blockClipboard?: CellBlock;
   disabled: boolean;
+  mosaicPaintMode: MosaicPaintMode;
   page: Page;
   rectangleSelection?: CellRectangle;
   selection?: CellSelection;
@@ -52,6 +53,7 @@ interface ToolDockProps {
   onControlSelect: (byte: number) => void;
   onHeaderClockModeChange: (mode: PageHeaderSettings["clockMode"]) => void;
   onMosaicPaint: (sixelMask: number) => void;
+  onMosaicPaintModeChange: (mode: MosaicPaintMode) => void;
   onMosaicTextStamp: (alphabetId: string, text: string, rowIndex: number, column: number) => void;
   onTraceAutoImport: () => void;
   onTraceCalibrationPositionChange: (position: TraceCalibrationPosition) => void;
@@ -80,6 +82,10 @@ export interface TraceCalibrationPosition {
 
 type ToolDockTab = "tools" | "mosaic" | "masthead" | "blocks" | "trace" | "page";
 
+export type MosaicPaintMode =
+  | { kind: "freestyle" }
+  | { kind: "preset"; mask: number };
+
 const TOOL_DOCK_TABS: Array<{ id: ToolDockTab; label: string }> = [
   { id: "tools", label: "Tools" },
   { id: "mosaic", label: "Mosaic" },
@@ -89,7 +95,7 @@ const TOOL_DOCK_TABS: Array<{ id: ToolDockTab; label: string }> = [
   { id: "page", label: "Page" }
 ];
 
-const MOSAIC_PATTERNS = [
+export const MOSAIC_PATTERNS = [
   { label: "Mosaic empty", mask: 0x00 },
   { label: "Mosaic full block", mask: 0x3f },
   { label: "Mosaic left half", mask: 0x15 },
@@ -131,6 +137,7 @@ export function ToolDock({
   artworkBlocks,
   blockClipboard,
   disabled,
+  mosaicPaintMode,
   page,
   rectangleSelection,
   selection,
@@ -147,6 +154,7 @@ export function ToolDock({
   onControlSelect,
   onHeaderClockModeChange,
   onMosaicPaint,
+  onMosaicPaintModeChange,
   onMosaicTextStamp,
   onToolChange,
   onTraceAutoImport,
@@ -220,6 +228,8 @@ export function ToolDock({
       }
 
       onToolChange("blocks");
+    } else if (tab === "mosaic") {
+      onToolChange("mosaic");
     }
   }
 
@@ -565,27 +575,47 @@ export function ToolDock({
       <section>
         <h2>Mosaic patterns</h2>
         <div className="mosaic-pattern-grid">
-          {MOSAIC_PATTERNS.map((pattern) => (
-            <button
-              disabled={disabled}
-              key={pattern.label}
-              onClick={() => onMosaicPaint(pattern.mask)}
-              type="button"
-            >
-              <span
-                aria-hidden="true"
-                className="mosaic-pattern-icon"
+          <button
+            aria-pressed={mosaicPaintMode.kind === "freestyle"}
+            className={mosaicPaintMode.kind === "freestyle" ? "active" : ""}
+            onClick={() => onMosaicPaintModeChange({ kind: "freestyle" })}
+            type="button"
+          >
+            Freestyle
+          </button>
+          {MOSAIC_PATTERNS.map((pattern) => {
+            const selected = mosaicPaintMode.kind === "preset"
+              && mosaicPaintMode.mask === pattern.mask;
+
+            return (
+              <button
+                aria-pressed={selected}
+                className={selected ? "active" : ""}
+                key={pattern.label}
+                onClick={() => {
+                  onMosaicPaintModeChange({ kind: "preset", mask: pattern.mask });
+
+                  if (!disabled) {
+                    onMosaicPaint(pattern.mask);
+                  }
+                }}
+                type="button"
               >
-                {Array.from({ length: 6 }, (_, sixelIndex) => (
-                  <span
-                    className={(pattern.mask & (1 << sixelIndex)) !== 0 ? "sixel-on" : ""}
-                    key={sixelIndex}
-                  />
-                ))}
-              </span>
-              {pattern.label}
-            </button>
-          ))}
+                <span
+                  aria-hidden="true"
+                  className="mosaic-pattern-icon"
+                >
+                  {Array.from({ length: 6 }, (_, sixelIndex) => (
+                    <span
+                      className={(pattern.mask & (1 << sixelIndex)) !== 0 ? "sixel-on" : ""}
+                      key={sixelIndex}
+                    />
+                  ))}
+                </span>
+                {pattern.label}
+              </button>
+            );
+          })}
         </div>
       </section>
       <ControlPalette

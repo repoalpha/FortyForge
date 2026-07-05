@@ -12,6 +12,7 @@ import { TeletextCanvas } from "./components/TeletextCanvas";
 import { TemplateLibrary } from "./components/TemplateLibrary";
 import {
   ToolDock,
+  type MosaicPaintMode,
   type TraceCalibrationPosition,
   type TraceDockStatus
 } from "./components/ToolDock";
@@ -381,6 +382,8 @@ export function App() {
     useState(DEFAULT_REFERENCE_PANEL_WIDTH);
   const [referencePanelResizeDrag, setReferencePanelResizeDrag] =
     useState<ReferencePanelResizeDrag | undefined>();
+  const [mosaicPaintMode, setMosaicPaintMode] =
+    useState<MosaicPaintMode>({ kind: "freestyle" });
   const [mosaicForeground, setMosaicForeground] =
     useState<TeletextColourRef>({ palette: "level1", index: 7 });
   const [clockNow, setClockNow] = useState(() => new Date());
@@ -694,6 +697,24 @@ export function App() {
       rowIndex: selection.rowIndex,
       column: selection.column
     });
+  }
+
+  function commitMosaicPresetPaint(rowIndex: number, column: number, sixelMask: number) {
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        paintMosaicCommand(
+          editor.service.id,
+          editor.page.id,
+          editor.subpage.id,
+          rowIndex,
+          column,
+          sixelMask,
+          mosaicForeground
+        )
+      )
+    );
+    setSelection({ rowIndex, column });
   }
 
   function commitMosaicSixelEdit(
@@ -1269,10 +1290,12 @@ export function App() {
             blockPreview={blockClipboard && blockPreviewTarget
               ? { block: blockClipboard, target: blockPreviewTarget }
               : undefined}
+            mosaicPaintMode={mosaicPaintMode}
             onBlockPreviewTargetChange={setBlockPreviewTarget}
             onBlockStamp={commitBlockStamp}
             onCellSelect={setSelection}
             onCellDelete={commitCellDelete}
+            onMosaicPresetPaint={commitMosaicPresetPaint}
             onMosaicSixelEdit={commitMosaicSixelEdit}
             onRectangleClear={clearBlockSelection}
             onRectangleSelect={setRectangleSelection}
@@ -1342,6 +1365,7 @@ export function App() {
         artworkBlocks={editor.project.artworkBlocks}
         blockClipboard={blockClipboard}
         disabled={!selection}
+        mosaicPaintMode={mosaicPaintMode}
         page={editor.page}
         rectangleSelection={rectangleSelection}
         subpage={editor.subpage}
@@ -1358,6 +1382,7 @@ export function App() {
         onControlSelect={commitControlCode}
         onHeaderClockModeChange={commitHeaderClockMode}
         onMosaicPaint={commitMosaicPaint}
+        onMosaicPaintModeChange={setMosaicPaintMode}
         onMosaicTextStamp={commitMosaicTextStamp}
         onTraceAutoImport={() => {
           void importTraceReference();
