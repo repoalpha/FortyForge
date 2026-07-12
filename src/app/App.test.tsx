@@ -232,6 +232,42 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Stamp masthead" })).not.toBeInTheDocument();
   });
 
+  it("selects the receiver font profile from the Tools tab", () => {
+    render(<App />);
+
+    const receiverFont = screen.getByLabelText("Receiver font");
+
+    expect(receiverFont).toHaveValue("saa5050-classic");
+
+    fireEvent.change(receiverFont, { target: { value: "bedstead-extended" } });
+
+    expect(screen.getByRole("option", { name: "Bedstead / Teletext50" })).toBeInTheDocument();
+    expect(receiverFont).toHaveValue("bedstead-extended");
+  });
+
+  it("inserts byte-correct teletext symbols from the Tools tab", () => {
+    render(<App />);
+
+    const firstBodyCell = screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    });
+
+    fireEvent.click(firstBodyCell);
+    fireEvent.click(screen.getByRole("button", { name: "Horizontal rule" }));
+
+    expect(screen.getByRole("gridcell", { name: "Row 1, column 1, byte 96" })).toHaveTextContent("–");
+
+    fireEvent.click(screen.getByRole("gridcell", { name: "Row 1, column 2, byte 32" }));
+    fireEvent.click(screen.getByRole("button", { name: "Vertical rule" }));
+
+    expect(screen.getByRole("gridcell", { name: "Row 1, column 2, byte 124" })).toHaveTextContent("‖");
+
+    fireEvent.click(screen.getByRole("gridcell", { name: "Row 1, column 3, byte 32" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solid block" }));
+
+    expect(screen.getByRole("gridcell", { name: "Row 1, column 3, byte 127" })).toHaveTextContent("█");
+  });
+
   it("supports cell typing and template application", () => {
     render(<App />);
 
@@ -541,7 +577,7 @@ describe("App", () => {
     const freestyle = screen.getByRole("button", { name: "Freestyle" });
     const topRow = screen.getByRole("button", { name: "Mosaic top row" });
 
-    expect(freestyle).toHaveAttribute("aria-pressed", "true");
+    expect(freestyle).toHaveAttribute("aria-pressed", "false");
     expect(topRow).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(topRow);
@@ -553,6 +589,28 @@ describe("App", () => {
 
     expect(freestyle).toHaveAttribute("aria-pressed", "true");
     expect(topRow).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("turns off a latched mosaic preset when the active preset is clicked again", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+
+    const topRow = screen.getByRole("button", { name: "Mosaic top row" });
+    fireEvent.click(topRow);
+    fireEvent.click(topRow);
+
+    expect(topRow).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Freestyle" }))
+      .toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 32"
+    }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 32"
+    })).toBeInTheDocument();
   });
 
   it("shows screenshot import controls in Import Trace mode", () => {
@@ -1143,6 +1201,55 @@ describe("App", () => {
     })).toBeInTheDocument();
   });
 
+  it("stamps the locked mosaic middle row preset", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic middle row" }));
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 76"
+    })).toBeInTheDocument();
+  });
+
+  it("undoes a locked mosaic arrow repeat run with one Ctrl+Z", () => {
+    render(<App />);
+    const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 32"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Mosaic top row" }));
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 67"
+    })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 67"
+    })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 3, byte 67"
+    })).toBeInTheDocument();
+
+    fireEvent.keyDown(grid, { key: "z", ctrlKey: true });
+
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 1, byte 67"
+    })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 2, byte 32"
+    })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", {
+      name: "Row 1, column 3, byte 32"
+    })).toBeInTheDocument();
+  });
+
   it("does not wrap locked mosaic preset stamping past the right row edge", () => {
     render(<App />);
     const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
@@ -1214,6 +1321,7 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Freestyle" }));
     fireEvent.mouseDown(screen.getByRole("img", { name: "PIT framebuffer preview" }), {
       button: 0,
       buttons: 1,
@@ -1230,6 +1338,7 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Freestyle" }));
     const canvas = screen.getByRole("img", { name: "PIT framebuffer preview" });
 
     fireEvent.mouseDown(canvas, {
@@ -1259,6 +1368,7 @@ describe("App", () => {
     const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
 
     fireEvent.click(screen.getByRole("button", { name: "Mosaic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Freestyle" }));
     fireEvent.mouseDown(screen.getByRole("img", { name: "PIT framebuffer preview" }), {
       button: 0,
       buttons: 1,
@@ -1311,6 +1421,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("gridcell", {
       name: "Row 1, column 1, byte 32"
     }));
+    fireEvent.click(screen.getByRole("button", { name: "Freestyle" }));
     fireEvent.keyDown(screen.getByRole("grid", { name: "40 by 25 teletext grid" }), {
       key: "W"
     });

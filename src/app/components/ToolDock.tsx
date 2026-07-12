@@ -8,6 +8,7 @@ import type {
   Page,
   PageHeaderSettings,
   Subpage,
+  TeletextFontProfileId,
   Template,
   ValidationIssue
 } from "../../core";
@@ -46,6 +47,7 @@ interface ToolDockProps {
   validationIssues: ValidationIssue[];
   onBackgroundSelect: (colourIndex: number) => void;
   onBlankSpacerInsert: () => void;
+  onCharacterByteInsert: (byte: number, value: string) => void;
   onBlockCopy: () => void;
   onBlockCut: () => void;
   onBlockSave: (name: string, assignedCharacter?: string) => void;
@@ -55,6 +57,7 @@ interface ToolDockProps {
   onMosaicPaint: (sixelMask: number) => void;
   onMosaicPaintModeChange: (mode: MosaicPaintMode) => void;
   onMosaicTextStamp: (alphabetId: string, text: string, rowIndex: number, column: number) => void;
+  onReceiverFontProfileChange: (profileId: TeletextFontProfileId) => void;
   onTraceAutoImport: () => void;
   onTraceCalibrationPositionChange: (position: TraceCalibrationPosition) => void;
   onTraceGridSuggestFromEdges: () => void;
@@ -83,6 +86,7 @@ export interface TraceCalibrationPosition {
 type ToolDockTab = "tools" | "mosaic" | "masthead" | "blocks" | "trace" | "page";
 
 export type MosaicPaintMode =
+  | { kind: "inactive" }
   | { kind: "freestyle" }
   | { kind: "preset"; mask: number };
 
@@ -101,6 +105,7 @@ export const MOSAIC_PATTERNS = [
   { label: "Mosaic left half", mask: 0x15 },
   { label: "Mosaic right half", mask: 0x2a },
   { label: "Mosaic top row", mask: 0x03 },
+  { label: "Mosaic middle row", mask: 0x0c },
   { label: "Mosaic bottom row", mask: 0x30 },
   { label: "Mosaic diagonal", mask: 0x25 },
   { label: "Mosaic checker", mask: 0x29 }
@@ -147,6 +152,7 @@ export function ToolDock({
   validationIssues,
   onBackgroundSelect,
   onBlankSpacerInsert,
+  onCharacterByteInsert,
   onBlockCopy,
   onBlockCut,
   onBlockSave,
@@ -156,6 +162,7 @@ export function ToolDock({
   onMosaicPaint,
   onMosaicPaintModeChange,
   onMosaicTextStamp,
+  onReceiverFontProfileChange,
   onToolChange,
   onTraceAutoImport,
   onTraceCalibrationPositionChange,
@@ -339,6 +346,34 @@ export function ToolDock({
         onBackgroundSelect={onBackgroundSelect}
         onControlSelect={onControlSelect}
       />
+      <section>
+        <h2>Receiver</h2>
+        <label>
+          Receiver font
+          <select
+            onChange={(event) =>
+              onReceiverFontProfileChange(event.target.value as TeletextFontProfileId)}
+            value={page.metadata.receiverFontProfileId}
+          >
+            <option value="saa5050-classic">SAA5050 classic</option>
+            <option value="bedstead-extended">Bedstead / Teletext50</option>
+          </select>
+        </label>
+        <p className="section-note">
+          Changes preview glyphs only; page bytes remain Level 1 compatible.
+        </p>
+        <div className="tool-button-grid">
+          <button onClick={() => onCharacterByteInsert(0x60, "–")} type="button">
+            Horizontal rule
+          </button>
+          <button onClick={() => onCharacterByteInsert(0x7c, "‖")} type="button">
+            Vertical rule
+          </button>
+          <button onClick={() => onCharacterByteInsert(0x7f, "█")} type="button">
+            Solid block
+          </button>
+        </div>
+      </section>
       <section>
         <h2>Selection</h2>
         <dl className="inspector-list">
@@ -593,9 +628,11 @@ export function ToolDock({
                 className={selected ? "active" : ""}
                 key={pattern.label}
                 onClick={() => {
-                  onMosaicPaintModeChange({ kind: "preset", mask: pattern.mask });
+                  onMosaicPaintModeChange(
+                    selected ? { kind: "inactive" } : { kind: "preset", mask: pattern.mask }
+                  );
 
-                  if (!disabled) {
+                  if (!selected && !disabled) {
                     onMosaicPaint(pattern.mask);
                   }
                 }}

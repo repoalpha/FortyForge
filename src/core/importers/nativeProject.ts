@@ -1,6 +1,16 @@
 import { projectSchema } from "../model/schema";
 import type { Project } from "../model/types";
 
+function backfillReceiverFontProfile(project: Project): Project {
+  for (const service of project.services) {
+    for (const page of service.pages) {
+      page.metadata.receiverFontProfileId ??= "saa5050-classic";
+    }
+  }
+
+  return project;
+}
+
 export function importNativeProject(input: string): Project {
   const parsed = JSON.parse(input) as unknown;
 
@@ -13,5 +23,5 @@ export function importNativeProject(input: string): Project {
     throw new Error("Unsupported project schema");
   }
 
-  return projectSchema.parse(parsed) as Project;
+  return backfillReceiverFontProfile(projectSchema.parse(parsed) as Project);
 }

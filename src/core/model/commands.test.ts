@@ -11,6 +11,7 @@ import {
   deleteCellWithRowShiftCommand,
   insertBackgroundColourWithRowShiftCommand,
   insertBlankSpacerWithRowShiftCommand,
+  insertCharacterByteCommand,
   insertControlCodeCommand,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
@@ -118,6 +119,27 @@ describe("editor commands", () => {
         .join("")
     ).toBe("HELLO");
     expect(next.services[0].pages[0].subpages[0].rows[2].cells).toHaveLength(40);
+  });
+
+  it("inserts a teletext character by byte without using the Unicode code point", () => {
+    const project = createDefaultProject();
+    const next = applyEditorCommand(
+      project,
+      insertCharacterByteCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        2,
+        3,
+        0x60,
+        "–"
+      )
+    );
+    const cell = next.services[0].pages[0].subpages[0].rows[2].cells[3];
+
+    expect(cell.byte).toBe(0x60);
+    expect(cell.byte).not.toBe("–".charCodeAt(0));
+    expect(cell.character?.value).toBe("–");
   });
 
   it("inserts control codes and paints mosaics", () => {

@@ -30,4 +30,12 @@ describe("createDefaultProject", () => {
     expect(project.contentSnapshots).toEqual([]);
     expect(firstPage.contentBindings).toEqual([]);
   });
+
+  it("defaults pages to the classic SAA5050 receiver font profile", () => {
+    const project = createDefaultProject();
+
+    expect(project.services[0].pages[0].metadata.receiverFontProfileId).toBe(
+      "saa5050-classic"
+    );
+  });
 });

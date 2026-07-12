@@ -82,6 +82,7 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
               tags: [],
               publicationState: "draft",
               targetPresentationLevel: "1",
+              receiverFontProfileId: "saa5050-classic",
               header: {
                 clockMode: "local"
               }

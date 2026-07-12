@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import { renderLevel1Row } from "../../core";
-import type { Cell, CellBlock, CellRectangle, MosaicSixelOperation, TeletextRow } from "../../core";
+import type {
+  Cell,
+  CellBlock,
+  CellRectangle,
+  MosaicSixelOperation,
+  TeletextFontProfileId,
+  TeletextRow
+} from "../../core";
 import type { RenderedLevel1Cell, RenderedLevel1Row } from "../../core";
 import {
   drawBitmapGlyph,
@@ -35,6 +42,7 @@ interface TeletextCanvasProps {
   };
   mosaicPaintMode?: MosaicPaintMode;
   previewProfileId?: TeletextPreviewProfileId;
+  receiverFontProfileId?: TeletextFontProfileId;
   rectangleSelection?: CellRectangle;
   onBlockPreviewTargetChange?: (selection: CellSelection) => void;
   onBlockStamp?: (selection: CellSelection) => void;
@@ -49,7 +57,12 @@ interface TeletextCanvasProps {
     sixelIndex: number,
     operation: MosaicSixelOperation
   ) => void;
-  onMosaicPresetPaint?: (rowIndex: number, column: number, sixelMask: number) => void;
+  onMosaicPresetPaint?: (
+    rowIndex: number,
+    column: number,
+    sixelMask: number,
+    options?: { coalesceWithPrevious?: boolean }
+  ) => void;
   onRedo?: () => void;
   onTextInput: (value: string) => void;
   onUndo?: () => void;
@@ -139,8 +152,9 @@ function operationFromPointerEvent(event: CanvasPointerLikeEvent) {
 export function TeletextCanvas({
   activeTool = "text",
   blockPreview,
-  mosaicPaintMode = { kind: "freestyle" },
+  mosaicPaintMode = { kind: "inactive" },
   previewProfileId = "studio-large",
+  receiverFontProfileId = "saa5050-classic",
   rectangleSelection,
   rows,
   selection,
@@ -159,6 +173,7 @@ export function TeletextCanvas({
 }: TeletextCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const arrowRepeatActiveRef = useRef(false);
   const isPaintingRef = useRef(false);
   const rectangleAnchorRef = useRef<CellSelection | undefined>(undefined);
   const columns = Array.from({ length: COLUMN_COUNT }, (_, index) => index + 1);
@@ -295,6 +310,7 @@ export function TeletextCanvas({
             cellHeight,
             cellWidth: viewport.cellWidth,
             colour: level1ColourToCss(cell.foreground),
+            profileId: receiverFontProfileId,
             value: cell.value,
             x,
             y
@@ -329,7 +345,7 @@ export function TeletextCanvas({
       drawRectangleOverlay(context, previewRectangle, "rgba(98, 214, 255, 0.22)", true);
       drawRectangleOverlay(context, previewRectangle, "#62d6ff");
     }
-  }, [blockPreview, rows, rectangleSelection, selection, viewport]);
+  }, [blockPreview, receiverFontProfileId, rows, rectangleSelection, selection, viewport]);
 
   function selectCell(nextSelection: CellSelection) {
     onCellSelect(nextSelection);
@@ -366,6 +382,7 @@ export function TeletextCanvas({
       return;
     }
 
+    arrowRepeatActiveRef.current = false;
     selectCell(target.hit);
 
     if (activeTool !== "mosaic") {
@@ -373,6 +390,10 @@ export function TeletextCanvas({
     }
 
     event.preventDefault();
+
+    if (mosaicPaintMode.kind === "inactive") {
+      return;
+    }
 
     if (mosaicPaintMode.kind === "preset") {
       onMosaicPresetPaint?.(
@@ -409,7 +430,10 @@ export function TeletextCanvas({
       return true;
     }
 
-    onMosaicPresetPaint(selection.rowIndex, nextColumn, mosaicPaintMode.mask);
+    onMosaicPresetPaint(selection.rowIndex, nextColumn, mosaicPaintMode.mask, {
+      coalesceWithPrevious: arrowRepeatActiveRef.current
+    });
+    arrowRepeatActiveRef.current = true;
     return true;
   }
 
@@ -506,6 +530,7 @@ export function TeletextCanvas({
           const modifierKey = event.ctrlKey || event.metaKey;
 
           if (modifierKey && key === "z") {
+            arrowRepeatActiveRef.current = false;
             event.preventDefault();
 
             if (event.shiftKey) {
@@ -517,6 +542,7 @@ export function TeletextCanvas({
           }
 
           if (modifierKey && key === "y") {
+            arrowRepeatActiveRef.current = false;
             event.preventDefault();
             onRedo?.();
             return;
@@ -530,6 +556,8 @@ export function TeletextCanvas({
               return;
             }
           }
+
+          arrowRepeatActiveRef.current = false;
 
           if (event.key === "Escape" && activeTool === "blocks") {
             event.preventDefault();
@@ -555,6 +583,7 @@ export function TeletextCanvas({
 
           if (
             activeTool === "mosaic" &&
+            mosaicPaintMode.kind === "freestyle" &&
             selection &&
             sixelIndex !== undefined &&
             onMosaicSixelEdit
@@ -605,6 +634,8 @@ export function TeletextCanvas({
                 key={`${row.index}-${cell.column}`}
                 onClick={() => {
                   const nextSelection = { rowIndex: row.index, column: cell.column };
+
+                  arrowRepeatActiveRef.current = false;
 
                   if (activeTool === "mosaic" && mosaicPaintMode.kind === "preset") {
                     onMosaicPresetPaint?.(row.index, cell.column, mosaicPaintMode.mask);

@@ -148,6 +148,21 @@ describe("bitmap glyph renderer", () => {
     ]);
   });
 
+  it("returns a distinct fixed-size Bedstead receiver glyph", () => {
+    const classic = getBitmapGlyph("A", "saa5050-classic");
+    const bedstead = getBitmapGlyph("A", "bedstead-extended");
+
+    expect(bedstead).toHaveLength(20);
+    expect(bedstead.every((row) => row.length === 12)).toBe(true);
+    expect(bedstead).not.toEqual(classic);
+    expect(bedstead.slice(2, 6)).toEqual([
+      "000000110000",
+      "000001111000",
+      "000011111100",
+      "000111001110"
+    ]);
+  });
+
   it("draws contiguous teletext mosaics as full-height 2 by 3 blocks", () => {
     const context = new RecordingContext();
 

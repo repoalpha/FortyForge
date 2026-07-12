@@ -1,5 +1,7 @@
 export type PresentationLevel = "1" | "1.5" | "2.5" | "3.5";
 
+export type TeletextFontProfileId = "saa5050-classic" | "bedstead-extended" | "tdatext-later";
+
 export type CellKind = "empty" | "character" | "control" | "mosaic" | "drcs";
 
 export type ControlCodeCategory =
@@ -94,6 +96,7 @@ export interface PageMetadata {
   publicationState: "draft" | "ready" | "published";
   templateId?: string;
   targetPresentationLevel: PresentationLevel;
+  receiverFontProfileId: TeletextFontProfileId;
   header: PageHeaderSettings;
 }
 

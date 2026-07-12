@@ -31,6 +31,7 @@ import {
 } from "./importTrace/screenshotTrace";
 import {
   addSubpageCommand,
+  applyEditorCommand,
   applyTemplateCommand,
   composeExportRows,
   createCitynewsCompactMastheadAlphabet,
@@ -49,6 +50,7 @@ import {
   insertBlankSpacerWithRowShiftCommand,
   insertBackgroundColourWithRowShiftCommand,
   insertControlCodeWithRowShiftCommand,
+  insertCharacterByteCommand,
   insertTextCommand,
   paintMosaicCommand,
   paintCellBackgroundCommand,
@@ -57,6 +59,7 @@ import {
   saveCurrentPageAsTemplateCommand,
   setMosaicForegroundCommand,
   setPageHeaderClockModeCommand,
+  setPageReceiverFontProfileCommand,
   stampCellBlockCommand,
   stampMosaicTextCommand
 } from "../core";
@@ -79,6 +82,7 @@ import type {
   PageHeaderSettings,
   Project,
   TeletextColourRef,
+  TeletextFontProfileId,
   TeletextRow
 } from "../core";
 
@@ -383,7 +387,7 @@ export function App() {
   const [referencePanelResizeDrag, setReferencePanelResizeDrag] =
     useState<ReferencePanelResizeDrag | undefined>();
   const [mosaicPaintMode, setMosaicPaintMode] =
-    useState<MosaicPaintMode>({ kind: "freestyle" });
+    useState<MosaicPaintMode>({ kind: "inactive" });
   const [mosaicForeground, setMosaicForeground] =
     useState<TeletextColourRef>({ palette: "level1", index: 7 });
   const [clockNow, setClockNow] = useState(() => new Date());
@@ -527,6 +531,31 @@ export function App() {
     setSelection({
       rowIndex: selection.rowIndex,
       column: Math.min(selection.column + value.length, 39)
+    });
+  }
+
+  function commitCharacterByte(byte: number, value: string) {
+    if (!selection) {
+      return;
+    }
+
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        insertCharacterByteCommand(
+          editor.service.id,
+          editor.page.id,
+          editor.subpage.id,
+          selection.rowIndex,
+          selection.column,
+          byte,
+          value
+        )
+      )
+    );
+    setSelection({
+      rowIndex: selection.rowIndex,
+      column: Math.min(selection.column + 1, 39)
     });
   }
 
@@ -699,20 +728,30 @@ export function App() {
     });
   }
 
-  function commitMosaicPresetPaint(rowIndex: number, column: number, sixelMask: number) {
+  function commitMosaicPresetPaint(
+    rowIndex: number,
+    column: number,
+    sixelMask: number,
+    options: { coalesceWithPrevious?: boolean } = {}
+  ) {
+    const command = paintMosaicCommand(
+      editor.service.id,
+      editor.page.id,
+      editor.subpage.id,
+      rowIndex,
+      column,
+      sixelMask,
+      mosaicForeground
+    );
+
     setHistory((currentHistory) =>
-      commitEditorHistory(
-        currentHistory,
-        paintMosaicCommand(
-          editor.service.id,
-          editor.page.id,
-          editor.subpage.id,
-          rowIndex,
-          column,
-          sixelMask,
-          mosaicForeground
-        )
-      )
+      options.coalesceWithPrevious
+        ? {
+            past: currentHistory.past,
+            present: applyEditorCommand(currentHistory.present, command),
+            future: []
+          }
+        : commitEditorHistory(currentHistory, command)
     );
     setSelection({ rowIndex, column });
   }
@@ -865,6 +904,15 @@ export function App() {
       commitEditorHistory(
         currentHistory,
         setPageHeaderClockModeCommand(editor.service.id, editor.page.id, mode)
+      )
+    );
+  }
+
+  function commitReceiverFontProfile(profileId: TeletextFontProfileId) {
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        setPageReceiverFontProfileCommand(editor.service.id, editor.page.id, profileId)
       )
     );
   }
@@ -1305,6 +1353,7 @@ export function App() {
             onUndo={undoEdit}
             previewProfileId={previewProfileId}
             rectangleSelection={rectangleSelection}
+            receiverFontProfileId={editor.page.metadata.receiverFontProfileId}
             rows={displayRows}
             selection={selection}
           />
@@ -1375,6 +1424,7 @@ export function App() {
         selection={selection}
         onBackgroundSelect={commitBackgroundColour}
         onBlankSpacerInsert={commitBlankSpacerInsert}
+        onCharacterByteInsert={commitCharacterByte}
         onBlockCopy={copySelectedBlock}
         onBlockCut={cutSelectedBlock}
         onBlockSave={commitBlockSave}
@@ -1384,6 +1434,7 @@ export function App() {
         onMosaicPaint={commitMosaicPaint}
         onMosaicPaintModeChange={setMosaicPaintMode}
         onMosaicTextStamp={commitMosaicTextStamp}
+        onReceiverFontProfileChange={commitReceiverFontProfile}
         onTraceAutoImport={() => {
           void importTraceReference();
         }}

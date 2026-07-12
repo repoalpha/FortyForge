@@ -47,6 +47,17 @@ describe("native project import/export", () => {
     expect(imported.artworkBlocks).toEqual([]);
   });
 
+  it("defaults missing page receiver font profiles when importing older native projects", () => {
+    const legacyProject = JSON.parse(exportNativeProject(createDefaultProject()));
+    delete legacyProject.services[0].pages[0].metadata.receiverFontProfileId;
+
+    const imported = importNativeProject(JSON.stringify(legacyProject));
+
+    expect(imported.services[0].pages[0].metadata.receiverFontProfileId).toBe(
+      "saa5050-classic"
+    );
+  });
+
   it("keeps custom templates when importing older projects that miss newer libraries", () => {
     const legacyProject = JSON.parse(exportNativeProject(createDefaultProject()));
 

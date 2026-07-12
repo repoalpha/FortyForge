@@ -3,6 +3,7 @@ import {
   SAA5050_GLYPH_HEIGHT,
   SAA5050_GLYPH_WIDTH
 } from "./saa5050Font";
+import type { TeletextFontProfileId } from "../../core";
 
 export type BitmapGlyph = string[];
 
@@ -15,6 +16,7 @@ export interface DrawBitmapGlyphOptions {
   cellHeight: number;
   cellWidth: number;
   colour: string;
+  profileId?: TeletextFontProfileId;
   value: string;
   x: number;
   y: number;
@@ -418,7 +420,40 @@ const BITMAP_GLYPHS: Record<string, BitmapGlyph> = {
   ]
 };
 
-export function getBitmapGlyph(value: string): BitmapGlyph {
+const BEDSTEAD_GLYPHS: Partial<Record<string, BitmapGlyph>> = {
+  A: [
+    "000000000000",
+    "000000000000",
+    "000000110000",
+    "000001111000",
+    "000011111100",
+    "000111001110",
+    "001110000111",
+    "001100000011",
+    "001100000011",
+    "001100000011",
+    "001111111111",
+    "001111111111",
+    "001100000011",
+    "001100000011",
+    "001100000011",
+    "001100000011",
+    "000000000000",
+    "000000000000",
+    "000000000000",
+    "000000000000"
+  ]
+};
+
+export function getBitmapGlyph(value: string, profileId: TeletextFontProfileId = "saa5050-classic"): BitmapGlyph {
+  if (profileId === "bedstead-extended") {
+    const bedsteadGlyph = BEDSTEAD_GLYPHS[value] ?? BEDSTEAD_GLYPHS[value.toUpperCase()];
+
+    if (bedsteadGlyph) {
+      return bedsteadGlyph;
+    }
+  }
+
   const glyph = getSaa5050Glyph(value) ?? getSaa5050Glyph(value.toUpperCase());
 
   return glyph
@@ -508,7 +543,7 @@ function normalizeBitmapGlyph(glyph: BitmapGlyph): BitmapGlyph {
 }
 
 export function drawBitmapGlyph(context: BitmapDrawContext, options: DrawBitmapGlyphOptions): void {
-  const glyph = getBitmapGlyph(options.value);
+  const glyph = getBitmapGlyph(options.value, options.profileId);
   const pixelWidth = Math.max(1, Math.floor(options.cellWidth / glyph[0].length));
   const pixelHeight = Math.max(1, Math.floor(options.cellHeight / glyph.length));
   const xOffset = Math.floor((options.cellWidth - glyph[0].length * pixelWidth) / 2);

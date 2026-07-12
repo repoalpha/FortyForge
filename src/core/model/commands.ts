@@ -13,6 +13,7 @@ import type {
   Project,
   Subpage,
   TeletextColourRef,
+  TeletextFontProfileId,
   TeletextRow
 } from "./types";
 
@@ -328,6 +329,35 @@ export function insertTextCommand(
         },
         project
       );
+    }
+  };
+}
+
+export function insertCharacterByteCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number,
+  byte: number,
+  value: string
+): EditorCommand {
+  return {
+    id: "insert-character-byte",
+    label: "Insert character",
+    apply: (project) => {
+      const row = findMutableRow(project, {
+        serviceId,
+        pageId,
+        subpageId,
+        rowIndex,
+        column
+      });
+      const cell = textCell(column, value, row?.cells[column]?.background);
+
+      cell.byte = byte;
+
+      return updateCell(project, { serviceId, pageId, subpageId, rowIndex, column }, cell);
     }
   };
 }
@@ -1122,6 +1152,30 @@ export function setPageHeaderClockModeCommand(
         ...page.metadata.header,
         clockMode
       };
+
+      return next;
+    }
+  };
+}
+
+export function setPageReceiverFontProfileCommand(
+  serviceId: string,
+  pageId: string,
+  profileId: TeletextFontProfileId
+): EditorCommand {
+  return {
+    id: "set-page-receiver-font-profile",
+    label: "Set receiver font profile",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const service = next.services.find((item) => item.id === serviceId);
+      const page = service?.pages.find((item) => item.id === pageId);
+
+      if (!page) {
+        return project;
+      }
+
+      page.metadata.receiverFontProfileId = profileId;
 
       return next;
     }
