@@ -3,4 +3,5 @@ dist/
 .vite/
 .turbo/
 coverage/
+.worktrees/
 *.log
