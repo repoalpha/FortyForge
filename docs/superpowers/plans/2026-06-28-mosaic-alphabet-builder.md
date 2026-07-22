@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` or `superpowers:test-driven-development` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let FortyForge build reusable mosaic lettering from archive-style cell blocks, then stamp words such as `PIXELCAST` without relying on browser fonts or fragile OCR heuristics.
+**Goal:** Let Pixelcast Studio build reusable mosaic lettering from archive-style cell blocks, then stamp words such as `PIXELCAST` without relying on browser fonts or fragile OCR heuristics.
 
 **User intent:** Preserve the current mosaic editor and import-trace improvements. Avoid another over-fitted recognition engine. Start with a controlled glyph palette that can be captured from known mosaic lettering and manually edited, then add constrained generation for missing letters.
 
 **Architecture:** Add a project-level `mosaicAlphabets` collection. A mosaic alphabet contains fixed-size glyphs made from existing Level 1 mosaic cells: sixel masks, separated/contiguous state, foreground, and background. Core helpers/commands capture glyphs from authored cells and stamp text back into rows. React only collects the selected letter/text/options and dispatches commands.
 
-**Tech Stack:** TypeScript, React, Vitest, Testing Library, existing FortyForge command/history model.
+**Tech Stack:** TypeScript, React, Vitest, Testing Library, existing Pixelcast Studio command/history model.
 
 **Non-goals for this first pass:**
 

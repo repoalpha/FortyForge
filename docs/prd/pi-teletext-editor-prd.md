@@ -13,7 +13,7 @@ Version 1 should be excellent at Level 1 and Level 1.5 authoring. Level 2.5 and 
 
 The native project format should be readable, versioned, and diffable. Compact binary streams are export artifacts, not the only source of truth. The editor should export to TTI and packet-oriented formats used by VBIT2, raspi-teletext, and vbit-py ecosystems.
 
-The editor should also support dynamic content sources. Authors should be able to bind RSS/Atom feeds, weather data, local files, simple JSON/CSV, and carefully configured web extracts into named template regions such as headline lists, club notices, weather panels, and bottom tickers. FortyForge designs and validates those bindings; `pi-teletext` or a companion update worker can refresh the source data and regenerate only the affected pages or rows.
+The editor should also support dynamic content sources. Authors should be able to bind RSS/Atom feeds, weather data, local files, simple JSON/CSV, and carefully configured web extracts into named template regions such as headline lists, club notices, weather panels, and bottom tickers. Pixelcast Studio designs and validates those bindings; `pi-teletext` or a companion update worker can refresh the source data and regenerate only the affected pages or rows.
 
 ## Goals
 

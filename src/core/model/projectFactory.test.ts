@@ -7,7 +7,7 @@ describe("createDefaultProject", () => {
     const firstPage = project.services[0].pages[0];
     const firstSubpage = firstPage.subpages[0];
 
-    expect(project.schemaVersion).toBe("1.0.0");
+    expect(project.schemaVersion).toBe("2.0.0");
     expect(firstPage.pageNumber).toBe("100");
     expect(firstSubpage.rows).toHaveLength(25);
     expect(firstSubpage.rows[1].cells).toHaveLength(40);
@@ -31,11 +31,11 @@ describe("createDefaultProject", () => {
     expect(firstPage.contentBindings).toEqual([]);
   });
 
-  it("defaults pages to the classic SAA5050 receiver font profile", () => {
+  it("defaults pages to the ETS 1990s receiver font profile", () => {
     const project = createDefaultProject();
 
     expect(project.services[0].pages[0].metadata.receiverFontProfileId).toBe(
-      "saa5050-classic"
+      "ets-1990s"
     );
   });
 });

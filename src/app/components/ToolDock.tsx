@@ -1,17 +1,22 @@
 import { useEffect, useState, type MouseEvent } from "react";
+import { ChevronDown, Eraser } from "lucide-react";
 
 import type {
   ArtworkBlock,
   CellBlock,
   CellRectangle,
+  ContentSnapshot,
+  ContentSource,
   MosaicAlphabet,
   Page,
   PageHeaderSettings,
   Subpage,
   TeletextFontProfileId,
+  TeletextRow,
   Template,
   ValidationIssue
 } from "../../core";
+import { G3_LINE_CODES, type G3LineCode } from "../../core";
 import type {
   TraceCellHint,
   TraceCellHintKind,
@@ -24,6 +29,7 @@ import type {
 } from "./ReferenceImagePanel";
 import { ControlPalette } from "./ControlPalette";
 import type { CellSelection } from "../state/editorStore";
+import { FeedWorkbench, type FeedWorkspaceState } from "./FeedWorkbench";
 
 export interface TraceDockStatus {
   state: "idle" | "loading" | "done" | "error";
@@ -36,9 +42,15 @@ interface ToolDockProps {
   activeTool: EditorTool;
   artworkBlocks: ArtworkBlock[];
   blockClipboard?: CellBlock;
+  carouselPlaying: boolean;
   disabled: boolean;
   mosaicPaintMode: MosaicPaintMode;
+  linePaintMode: G3LinePaintMode;
   page: Page;
+  pages: Page[];
+  contentSources: ContentSource[];
+  contentSnapshots: ContentSnapshot[];
+  receiverFontProfileId: TeletextFontProfileId;
   rectangleSelection?: CellRectangle;
   selection?: CellSelection;
   subpage: Subpage;
@@ -54,11 +66,31 @@ interface ToolDockProps {
   onBlockStamp: () => void;
   onControlSelect: (byte: number) => void;
   onHeaderClockModeChange: (mode: PageHeaderSettings["clockMode"]) => void;
+  onFeedWorkspaceChange: (workspace?: FeedWorkspaceState) => void;
+  onFeedSourceSave: (source: ContentSource) => void;
+  onFeedSourceSnapshotSave: (source: ContentSource, snapshot: ContentSnapshot) => void;
+  onFeedTargetPageSelect: (pageId: string) => void;
+  onFeedBindingRemove: (pageId: string, bindingId: string) => void;
+  onCarouselPlayingChange: (playing: boolean) => void;
+  onFeedPlaceSnapshot: (
+    source: ContentSource,
+    snapshot: ContentSnapshot,
+    frames: TeletextRow[][],
+    delaySeconds: number
+  ) => void;
+  onFeedBindToSlot: (
+    source: ContentSource,
+    snapshot: ContentSnapshot,
+    templateRegionId: string,
+    fields: string[],
+    bounds: CellRectangle,
+    attributionGapRows: number
+  ) => void;
   onMosaicPaint: (sixelMask: number) => void;
   onMosaicPaintModeChange: (mode: MosaicPaintMode) => void;
+  onLinePaintModeChange: (mode: G3LinePaintMode) => void;
   onMosaicTextStamp: (alphabetId: string, text: string, rowIndex: number, column: number) => void;
   onReceiverFontProfileChange: (profileId: TeletextFontProfileId) => void;
-  onTraceAutoImport: () => void;
   onTraceCalibrationPositionChange: (position: TraceCalibrationPosition) => void;
   onTraceGridSuggestFromEdges: () => void;
   onTraceScanScreenshot: () => void;
@@ -83,20 +115,41 @@ export interface TraceCalibrationPosition {
   yPercent: number;
 }
 
-type ToolDockTab = "tools" | "mosaic" | "masthead" | "blocks" | "trace" | "page";
+type ToolDockTab = "tools" | "feeds" | "lines" | "mosaic" | "masthead" | "blocks" | "trace" | "page";
 
 export type MosaicPaintMode =
   | { kind: "inactive" }
   | { kind: "freestyle" }
   | { kind: "preset"; mask: number };
 
+export interface G3LinePaintMode {
+  code?: G3LineCode;
+  level1Fallback: boolean;
+}
+
 const TOOL_DOCK_TABS: Array<{ id: ToolDockTab; label: string }> = [
   { id: "tools", label: "Tools" },
+  { id: "feeds", label: "Feeds" },
+  { id: "lines", label: "Lines" },
   { id: "mosaic", label: "Mosaic" },
   { id: "masthead", label: "Masthead" },
   { id: "blocks", label: "Blocks" },
   { id: "trace", label: "Trace" },
   { id: "page", label: "Page" }
+];
+
+const G3_LINE_PALETTE: Array<{ code: G3LineCode; label: string; symbol: string }> = [
+  { code: G3_LINE_CODES.horizontal, label: "Horizontal line", symbol: "\u2500" },
+  { code: G3_LINE_CODES.vertical, label: "Vertical line", symbol: "\u2502" },
+  { code: G3_LINE_CODES.topLeft, label: "Top-left corner", symbol: "\u250c" },
+  { code: G3_LINE_CODES.topRight, label: "Top-right corner", symbol: "\u2510" },
+  { code: G3_LINE_CODES.bottomLeft, label: "Bottom-left corner", symbol: "\u2514" },
+  { code: G3_LINE_CODES.bottomRight, label: "Bottom-right corner", symbol: "\u2518" },
+  { code: G3_LINE_CODES.teeRight, label: "Right-facing junction", symbol: "\u251c" },
+  { code: G3_LINE_CODES.teeLeft, label: "Left-facing junction", symbol: "\u2524" },
+  { code: G3_LINE_CODES.teeDown, label: "Down-facing junction", symbol: "\u252c" },
+  { code: G3_LINE_CODES.teeUp, label: "Up-facing junction", symbol: "\u2534" },
+  { code: G3_LINE_CODES.cross, label: "Cross junction", symbol: "\u253c" }
 ];
 
 export const MOSAIC_PATTERNS = [
@@ -141,9 +194,15 @@ export function ToolDock({
   activeTool,
   artworkBlocks,
   blockClipboard,
+  carouselPlaying,
   disabled,
   mosaicPaintMode,
+  linePaintMode,
   page,
+  pages,
+  contentSources,
+  contentSnapshots,
+  receiverFontProfileId,
   rectangleSelection,
   selection,
   subpage,
@@ -159,12 +218,20 @@ export function ToolDock({
   onBlockStamp,
   onControlSelect,
   onHeaderClockModeChange,
+  onFeedWorkspaceChange,
+  onFeedSourceSave,
+  onFeedSourceSnapshotSave,
+  onFeedTargetPageSelect,
+  onFeedBindingRemove,
+  onCarouselPlayingChange,
+  onFeedPlaceSnapshot,
+  onFeedBindToSlot,
   onMosaicPaint,
   onMosaicPaintModeChange,
+  onLinePaintModeChange,
   onMosaicTextStamp,
   onReceiverFontProfileChange,
   onToolChange,
-  onTraceAutoImport,
   onTraceCalibrationPositionChange,
   onTraceGridSuggestFromEdges,
   onTraceScanScreenshot,
@@ -218,6 +285,8 @@ export function ToolDock({
   useEffect(() => {
     if (activeTool === "mosaic") {
       setDockTab("mosaic");
+    } else if (activeTool === "lines") {
+      setDockTab("lines");
     } else if (activeTool === "blocks") {
       setDockTab("blocks");
     } else if (activeTool === "import-trace") {
@@ -237,6 +306,10 @@ export function ToolDock({
       onToolChange("blocks");
     } else if (tab === "mosaic") {
       onToolChange("mosaic");
+    } else if (tab === "lines") {
+      onToolChange("lines");
+    } else if (tab === "trace") {
+      onToolChange("import-trace");
     }
   }
 
@@ -315,6 +388,13 @@ export function ToolDock({
             Mosaic
           </button>
           <button
+            aria-pressed={activeTool === "lines"}
+            onClick={() => onToolChange("lines")}
+            type="button"
+          >
+            Lines
+          </button>
+          <button
             aria-pressed={activeTool === "blocks"}
             onClick={(event) => {
               if (event.ctrlKey || event.metaKey) {
@@ -348,16 +428,20 @@ export function ToolDock({
       />
       <section>
         <h2>Receiver</h2>
-        <label>
+        <label className="receiver-font-field">
           Receiver font
-          <select
-            onChange={(event) =>
-              onReceiverFontProfileChange(event.target.value as TeletextFontProfileId)}
-            value={page.metadata.receiverFontProfileId}
-          >
-            <option value="saa5050-classic">SAA5050 classic</option>
-            <option value="bedstead-extended">Bedstead / Teletext50</option>
-          </select>
+          <span className="select-control">
+            <select
+              onChange={(event) =>
+                onReceiverFontProfileChange(event.target.value as TeletextFontProfileId)}
+              value={receiverFontProfileId}
+            >
+              <option value="ets-1990s">ETS 1990s / EBU Level 2.5</option>
+              <option value="saa5050-classic">SAA5050 classic</option>
+              <option value="tdatext-later">Philips later / TDA</option>
+            </select>
+            <ChevronDown aria-hidden="true" size={16} strokeWidth={2} />
+          </span>
         </label>
         <p className="section-note">
           Changes preview glyphs only; page bytes remain Level 1 compatible.
@@ -400,11 +484,85 @@ export function ToolDock({
       </>
       ) : null}
 
+      {dockTab === "feeds" ? (
+        <FeedWorkbench
+          carouselPlaying={carouselPlaying}
+          onBindingRemove={onFeedBindingRemove}
+          onCarouselPlayingChange={onCarouselPlayingChange}
+          onBindToSlot={(source, snapshot, templateRegionId, fields, bounds, attributionGapRows) => {
+            onFeedBindToSlot(source, snapshot, templateRegionId, fields, bounds, attributionGapRows);
+            setDockTab("tools");
+            onToolChange("text");
+          }}
+          onPlaceSnapshot={(source, snapshot, frames, delaySeconds) => {
+            onFeedPlaceSnapshot(source, snapshot, frames, delaySeconds);
+            setDockTab("tools");
+            onToolChange("text");
+          }}
+          onWorkspaceChange={onFeedWorkspaceChange}
+          onSourceSave={onFeedSourceSave}
+          onSourceSnapshotSave={onFeedSourceSnapshotSave}
+          onTargetPageSelect={onFeedTargetPageSelect}
+          page={page}
+          pages={pages}
+          rectangleSelection={rectangleSelection}
+          snapshots={contentSnapshots}
+          sources={contentSources}
+          subpage={subpage}
+          templates={templates}
+        />
+      ) : null}
+
+      {dockTab === "lines" ? (
+        <section className="line-tool-panel">
+          <h2>ETSI Line Drawing</h2>
+          <div className="line-glyph-grid" role="group" aria-label="Line glyph">
+            {G3_LINE_PALETTE.map((glyph) => (
+              <button
+                aria-label={glyph.label}
+                aria-pressed={linePaintMode.code === glyph.code}
+                className="line-glyph-button"
+                key={glyph.code}
+                onClick={() => onLinePaintModeChange({ ...linePaintMode, code: glyph.code })}
+                title={glyph.label}
+                type="button"
+              >
+                <span aria-hidden="true">{glyph.symbol}</span>
+              </button>
+            ))}
+            <button
+              aria-label="Erase line glyph"
+              aria-pressed={linePaintMode.code === undefined}
+              className="line-glyph-button"
+              onClick={() => onLinePaintModeChange({ ...linePaintMode, code: undefined })}
+              title="Erase line glyph"
+              type="button"
+            >
+              <Eraser aria-hidden="true" size={20} />
+            </button>
+          </div>
+          <label className="line-fallback-toggle">
+            <input
+              checked={linePaintMode.level1Fallback}
+              onChange={(event) => onLinePaintModeChange({
+                ...linePaintMode,
+                level1Fallback: event.target.checked
+              })}
+              type="checkbox"
+            />
+            <span>Level 1 horizontal fallback</span>
+          </label>
+          <p className="section-note">
+            Click or drag on rows 1-24. Right-click erases. Lines are transmitted as X/26 G3.
+          </p>
+        </section>
+      ) : null}
+
       {dockTab === "trace" ? (
         <section>
           <h2>Reference Trace</h2>
           <p className="section-note">
-            Load a clean teletext screenshot as a visual guide. The automatic decoder is optional.
+            Load a teletext screenshot as a visual guide or scan it into editable rows.
           </p>
           <label className="trace-file-picker">
             <span>Reference screenshot</span>
@@ -423,14 +581,6 @@ export function ToolDock({
             />
           </label>
           <button
-            className="trace-auto-button"
-            disabled={!traceReferenceName || traceStatus.state === "loading"}
-            onClick={onTraceAutoImport}
-            type="button"
-          >
-            Try auto trace
-          </button>
-          <button
             className="trace-secondary-button"
             disabled={!traceReferenceName || traceStatus.state === "loading"}
             onClick={onTraceGridSuggestFromEdges}
@@ -439,7 +589,7 @@ export function ToolDock({
             Suggest grid from edges
           </button>
           <button
-            className="trace-auto-button"
+            className="trace-primary-button"
             disabled={!traceReferenceName || traceStatus.state === "loading"}
             onClick={onTraceScanScreenshot}
             type="button"

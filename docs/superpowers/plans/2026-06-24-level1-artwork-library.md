@@ -6,7 +6,7 @@
 
 **Architecture:** Add `artworkBlocks` as a project-level collection, parallel to custom templates. Core commands own capture, stamp, and delete behavior; React only drives selection state and command dispatch. The canvas gets a rectangle selection overlay and the Tool Dock gets an Artwork panel for save/place/delete workflows.
 
-**Tech Stack:** TypeScript, React, Vitest, Testing Library, existing FortyForge command/history model.
+**Tech Stack:** TypeScript, React, Vitest, Testing Library, existing Pixelcast Studio command/history model.
 
 ---
 

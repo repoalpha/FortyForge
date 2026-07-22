@@ -394,7 +394,7 @@ The first implementation should support RSS/Atom parsing, local JSON/text snapsh
 - Last-known-good snapshot hashes.
 - Output mode: static rows, generated carousel frames, packet deltas, or runtime ticker row updates.
 
-FortyForge remains the authoring tool. A companion update worker or `pi-teletext` runtime adapter can consume the manifest, refresh sources, run the same formatter/validator package, and write updated `.pttx`, TTI, packet stream, or low-bandwidth delta outputs. If validation fails, the worker should keep the last valid snapshot and emit a status warning rather than publishing malformed rows.
+Pixelcast Studio remains the authoring tool. A companion update worker or `pi-teletext` runtime adapter can consume the manifest, refresh sources, run the same formatter/validator package, and write updated `.pttx`, TTI, packet stream, or low-bandwidth delta outputs. If validation fails, the worker should keep the last valid snapshot and emit a status warning rather than publishing malformed rows.
 
 Ticker behavior:
 

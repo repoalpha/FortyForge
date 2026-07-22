@@ -1,18 +1,24 @@
 {
-  "name": "fortyforge",
-  "version": "0.1.0",
+  "name": "pixelcast-studio",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "pixelcast": "tsx src/publisher/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@derock.ir/words-frequency": "^1.2.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "dictionary-en-gb": "^3.0.0",
+    "fast-xml-parser": "^5.2.5",
+    "fflate": "^0.8.2",
     "lucide-react": "^0.468.0",
+    "nspell": "^2.1.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.5.0",
@@ -22,10 +28,22 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/react": "^16.0.0",
+    "@types/nspell": "^2.1.6",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/node": "^24.0.0",
     "jsdom": "^25.0.0",
+    "opencode-ai": "^1.17.18",
     "playwright": "^1.48.0",
+    "pngjs": "^7.0.0",
+    "tsx": "^4.20.3",
     "vitest": "^2.1.0"
+  },
+  "optionalDependencies": {
+    "opencode-windows-x64": "^1.17.18"
+  },
+  "overrides": {
+    "esbuild": "0.28.1"
   }
 }

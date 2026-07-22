@@ -11,7 +11,7 @@ describe("native project import/export", () => {
     const exported = exportNativeProject(project);
     const imported = importNativeProject(exported);
 
-    expect(exported).toContain('"schemaVersion": "1.0.0"');
+    expect(exported).toContain('"schemaVersion": "2.0.0"');
     expect(imported.metadata.title).toBe(project.metadata.title);
     expect(imported.contentSources).toEqual([]);
     expect(imported.services[0].pages[0].pageNumber).toBe("100");
@@ -22,11 +22,37 @@ describe("native project import/export", () => {
   it("rejects unsupported schema versions", () => {
     const project = createDefaultProject();
     const exported = exportNativeProject(project).replace(
-      '"schemaVersion": "1.0.0"',
+      '"schemaVersion": "2.0.0"',
       '"schemaVersion": "9.0.0"'
     );
 
     expect(() => importNativeProject(exported)).toThrow("Unsupported project schema");
+  });
+
+  it("migrates schema 1 projects without losing pages or custom templates", () => {
+    const legacyProject = JSON.parse(exportNativeProject(createDefaultProject()));
+    legacyProject.schemaVersion = "1.0.0";
+    delete legacyProject.services[0].schedule;
+    legacyProject.templates.push({
+      id: "custom-template-legacy",
+      name: "Legacy template",
+      description: "Imported from FortyForge.",
+      category: "blank",
+      targetPresentationLevel: "1",
+      rows: legacyProject.services[0].pages[0].subpages[0].rows,
+      regions: []
+    });
+
+    const imported = importNativeProject(JSON.stringify(legacyProject));
+
+    expect(imported.schemaVersion).toBe("2.0.0");
+    expect(imported.services[0].pages[0].pageNumber).toBe("100");
+    expect(imported.services[0].schedule).toEqual({
+      enabled: false,
+      defaultDwellSeconds: 8,
+      entries: []
+    });
+    expect(imported.templates[0].templateVersion).toBe("1.0.0");
   });
 
   it("defaults missing mosaic alphabets when importing older native projects", () => {
@@ -54,7 +80,7 @@ describe("native project import/export", () => {
     const imported = importNativeProject(JSON.stringify(legacyProject));
 
     expect(imported.services[0].pages[0].metadata.receiverFontProfileId).toBe(
-      "saa5050-classic"
+      "ets-1990s"
     );
   });
 

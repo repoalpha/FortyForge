@@ -1,0 +1,8 @@
+[
+  {
+    "id": "news-1",
+    "title": "Pixelcast publisher goes on air",
+    "body": "The first Pixelcast proof of concept compiles reusable teletext templates into a versioned broadcast release. Subscriber devices verify page hashes before activating the new channel. The old release stays available if any file is incomplete. This deliberately long demonstration story also proves that continuation subpages are generated without corrupting mastheads, control codes, mosaics, or attribution text. Pixelcast Studio keeps the exact forty by twenty five cell grid while typed template slots reserve safe areas for changing copy. The Publisher normalises each source, applies character mapping, wraps text, checks attribution, and rejects an invalid release before any subscriber can see it. A channel head points devices to one immutable release, allowing every page to change together. News can receive extra repeat weight while weather, finance, and index pages retain their own dwell times. The subscriber owns the live clock, flashing phase, manual navigation, and automatic carousel. This second paragraph is intentionally long enough to require a continuation subpage, demonstrating deterministic pagination rather than clipping or overwriting the footer.",
+    "publishedAt": "2026-07-19T08:00:00+10:00"
+  }
+]

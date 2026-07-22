@@ -32,11 +32,11 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
   const timestamp = now.toISOString();
 
   return {
-    schemaVersion: "1.0.0",
-    appVersion: "0.1.0",
+    schemaVersion: "2.0.0",
+    appVersion: "0.2.0",
     metadata: {
       id: "project-default",
-      title: "Untitled FortyForge Service",
+      title: "Untitled Pixelcast Service",
       description: "A new pi-teletext service project.",
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -82,7 +82,7 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
               tags: [],
               publicationState: "draft",
               targetPresentationLevel: "1",
-              receiverFontProfileId: "saa5050-classic",
+              receiverFontProfileId: "ets-1990s",
               header: {
                 clockMode: "local"
               }
@@ -98,6 +98,11 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
           defaultExportProfileId: "export-native",
           rowCount: ROW_COUNT,
           columnCount: COLUMN_COUNT
+        },
+        schedule: {
+          enabled: false,
+          defaultDwellSeconds: 8,
+          entries: []
         }
       }
     ],
@@ -113,8 +118,8 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
     exportProfiles: [
       {
         id: "export-native",
-        name: "Native FortyForge project",
-        targetFormats: ["pttx"],
+        name: "Native Pixelcast project",
+        targetFormats: ["pixelcast"],
         presentationLevel: "1"
       }
     ],

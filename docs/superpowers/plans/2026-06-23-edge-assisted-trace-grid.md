@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the existing manual grid and hint workflow. Add a small image-analysis helper in `screenshotTrace.ts` that scores local vertical/horizontal colour edges near expected teletext grid lines and returns calibrated `xLines`/`yLines`. The React app applies those suggested lines as grid calibration anchors, so existing tracing and manual editing paths continue to work.
 
-**Tech Stack:** TypeScript, Vitest, React Testing Library, existing FortyForge trace image data structures.
+**Tech Stack:** TypeScript, Vitest, React Testing Library, existing Pixelcast Studio trace image data structures.
 
 ---
 

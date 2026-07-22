@@ -1,20 +1,33 @@
 import { applyTemplate } from "../templates/applyTemplate";
 import { getControlCodeByByte } from "../standards/controlCodes";
+import { level1ByteForG0Character } from "../standards/g0Charset";
+import { displaySubpageSubcode, MAX_DISPLAY_SUBPAGES } from "../standards/subpages";
 import { captureMosaicGlyph, layoutMosaicText } from "../mosaicAlphabet/mosaicAlphabet";
 import { renderLevel1Row } from "../render/renderLevel1";
+import {
+  extractG3LineCells,
+  G3_LINE_CODES,
+  replaceG3LineCells,
+  type G3LineCode
+} from "../enhancements/g3Lines";
 import type {
   ArtworkBlock,
   ArtworkBlockCategory,
   CellRectangle,
   Cell,
   CellBlock,
+  ContentBinding,
+  ContentSnapshot,
+  ContentSource,
   MosaicAlphabet,
   PageHeaderSettings,
   Project,
   Subpage,
   TeletextColourRef,
   TeletextFontProfileId,
-  TeletextRow
+  TeletextRow,
+  Template,
+  TemplateRegion
 } from "./types";
 
 export interface CellLocation {
@@ -132,12 +145,14 @@ function cloneCellForColumn(cell: Cell, column: number): Cell {
 }
 
 function textCell(column: number, value: string, background?: TeletextColourRef): Cell {
+  const byte = level1ByteForG0Character(value);
+  const safeValue = byte === undefined ? "?" : value;
   return {
     column,
     kind: "character",
-    byte: value.charCodeAt(0),
+    byte: byte ?? 0x3f,
     character: {
-      value,
+      value: safeValue,
       charset: "G0"
     },
     background,
@@ -233,6 +248,127 @@ function shiftRowLeftFromColumn(rowCells: Cell[], column: number, count = 1) {
 
 function foregroundControlByteForMode(mode: "text" | "graphics", colourIndex: number) {
   return mode === "graphics" ? 0x10 + colourIndex : colourIndex;
+}
+
+interface Level1TransmissionState {
+  background: number;
+  doubleHeight: boolean;
+  foreground: number;
+  mode: "text" | "graphics";
+  separatedGraphics: boolean;
+}
+
+function transmissionStateAt(row: TeletextRow, column: number): Level1TransmissionState {
+  const rendered = renderLevel1Row(row).cells[column];
+
+  return {
+    background: rendered.background.index,
+    doubleHeight: rendered.doubleHeight,
+    foreground: rendered.foreground.index,
+    mode: rendered.mode,
+    separatedGraphics: rendered.separatedGraphics
+  };
+}
+
+function controlBytesForTransmissionState(
+  current: Level1TransmissionState,
+  target: Level1TransmissionState
+) {
+  const bytes: number[] = [];
+  const state = { ...current };
+
+  if (state.doubleHeight !== target.doubleHeight) {
+    bytes.push(target.doubleHeight ? 0x0d : 0x0c);
+    state.doubleHeight = target.doubleHeight;
+  }
+
+  if (state.background !== target.background) {
+    if (target.background === 0) {
+      bytes.push(0x1c);
+    } else {
+      bytes.push(foregroundControlByteForMode(state.mode, target.background), 0x1d);
+      state.foreground = target.background;
+    }
+    state.background = target.background;
+  }
+
+  if (state.mode !== target.mode || state.foreground !== target.foreground) {
+    bytes.push(foregroundControlByteForMode(target.mode, target.foreground));
+    state.mode = target.mode;
+    state.foreground = target.foreground;
+  }
+
+  if (state.separatedGraphics !== target.separatedGraphics) {
+    bytes.push(target.separatedGraphics ? 0x1a : 0x19);
+  }
+
+  return bytes;
+}
+
+function cellsCanBecomeControls(row: TeletextRow, startColumn: number, bytes: number[]) {
+  return startColumn >= 0
+    && startColumn + bytes.length <= row.cells.length
+    && row.cells.slice(startColumn, startColumn + bytes.length)
+      .every((cell) => cell.kind === "empty" && cell.annotations.length === 0);
+}
+
+function writeControls(row: TeletextRow, startColumn: number, bytes: number[]) {
+  bytes.forEach((byte, offset) => {
+    row.cells[startColumn + offset] = controlCell(startColumn + offset, byte);
+  });
+}
+
+/**
+ * Makes an editor-authored mosaic run reproducible by a Level 1 receiver.
+ * Metadata colours are useful while drawing, but PIT only receives row bytes,
+ * so free cells immediately around the run carry the required state changes.
+ */
+function synchronizeMosaicRunTransmission(
+  row: TeletextRow,
+  startColumn: number,
+  endColumn: number,
+  desired: Pick<Level1TransmissionState, "background" | "foreground" | "separatedGraphics">,
+  options: { reclaimPrefix?: boolean } = {}
+) {
+  if (startColumn < 0 || endColumn < startColumn || endColumn >= row.cells.length) {
+    return;
+  }
+
+  const originalStartState = transmissionStateAt(row, startColumn);
+  const desiredState: Level1TransmissionState = {
+    ...originalStartState,
+    background: desired.background,
+    foreground: desired.foreground,
+    mode: "graphics",
+    separatedGraphics: desired.separatedGraphics
+  };
+  const originalFollowingState = endColumn + 1 < row.cells.length
+    ? transmissionStateAt(row, endColumn + 1)
+    : undefined;
+  const prefixBytes = controlBytesForTransmissionState(originalStartState, desiredState);
+  const prefixStart = startColumn - prefixBytes.length;
+
+  const canReclaimPrefix = options.reclaimPrefix
+    && prefixStart >= 0
+    && prefixStart + prefixBytes.length <= row.cells.length
+    && row.cells.slice(prefixStart, prefixStart + prefixBytes.length)
+      .every((cell) => cell.kind !== "control" && cell.annotations.length === 0);
+
+  if (!cellsCanBecomeControls(row, prefixStart, prefixBytes) && !canReclaimPrefix) {
+    return;
+  }
+
+  writeControls(row, prefixStart, prefixBytes);
+
+  if (!originalFollowingState) {
+    return;
+  }
+
+  const suffixBytes = controlBytesForTransmissionState(desiredState, originalFollowingState);
+
+  if (cellsCanBecomeControls(row, endColumn + 1, suffixBytes)) {
+    writeControls(row, endColumn + 1, suffixBytes);
+  }
 }
 
 function isTextColourControl(byte: number) {
@@ -582,7 +718,7 @@ export function paintMosaicCommand(
       }
 
       const current = row.cells[column];
-      const currentState = renderLevel1Row(row).cells[column];
+      const mosaicBackground = background ?? mosaicEditBackground(row, column, current);
 
       row.cells[column] = {
         column,
@@ -592,10 +728,15 @@ export function paintMosaicCommand(
           separated: false,
           sixelMask,
           foreground,
-          background: background ?? mosaicEditBackground(row, column, current)
+          background: mosaicBackground
         },
         annotations: []
       };
+      synchronizeMosaicRunTransmission(row, column, column, {
+        background: mosaicBackground.index,
+        foreground: foreground.index,
+        separatedGraphics: false
+      });
 
       return next;
     }
@@ -672,6 +813,15 @@ export function editMosaicSixelCommand(
         },
         annotations: current.annotations ?? []
       };
+      const nextMosaic = row.cells[column].mosaic;
+
+      if (nextMosaic) {
+        synchronizeMosaicRunTransmission(row, column, column, {
+          background: nextMosaic.background.index,
+          foreground: nextMosaic.foreground.index,
+          separatedGraphics: nextMosaic.separated
+        });
+      }
 
       return next;
     }
@@ -1004,6 +1154,38 @@ export function stampMosaicTextCommand(
         };
       }
 
+      for (let rowOffset = 0; rowOffset < layout.height; rowOffset += 1) {
+        const layoutRow = layout.cells.filter((cell) => cell.rowOffset === rowOffset);
+        const firstCell = layoutRow[0]?.cell;
+
+        if (!firstCell || firstCell.foreground.palette !== "level1" || firstCell.background.palette !== "level1") {
+          continue;
+        }
+
+        const hasUniformState = layoutRow.every((cell) =>
+          cell.cell.foreground.palette === "level1"
+          && cell.cell.foreground.index === firstCell.foreground.index
+          && cell.cell.background.palette === "level1"
+          && cell.cell.background.index === firstCell.background.index
+          && cell.cell.separated === firstCell.separated
+        );
+        const row = subpage.rows.find((item) => item.index === options.rowIndex + rowOffset);
+
+        if (row && hasUniformState) {
+          synchronizeMosaicRunTransmission(
+            row,
+            options.column,
+            options.column + layout.width - 1,
+            {
+              background: firstCell.background.index,
+              foreground: firstCell.foreground.index,
+              separatedGraphics: firstCell.separated
+            },
+            { reclaimPrefix: true }
+          );
+        }
+      }
+
       return next;
     }
   };
@@ -1048,9 +1230,46 @@ export function saveCurrentPageAsTemplateCommand(
         category: "blank",
         targetPresentationLevel: page.metadata.targetPresentationLevel,
         rows: structuredClone(subpage.rows),
-        regions: []
+        regions: [],
+        templateVersion: "1.0.0",
+        requiredPixelcastVersion: "0.2.0",
+        blocks: [],
+        fixtures: []
       });
 
+      return next;
+    }
+  };
+}
+
+export function addTemplateRegionCommand(
+  templateId: string,
+  region: TemplateRegion
+): EditorCommand {
+  return {
+    id: "add-template-region",
+    label: "Add template content slot",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const template = next.templates.find((item) => item.id === templateId);
+      if (!template) return project;
+      const overlaps = template.regions.some((item) => !(
+        region.bounds.endRow < item.bounds.startRow
+        || region.bounds.startRow > item.bounds.endRow
+        || region.bounds.endColumn < item.bounds.startColumn
+        || region.bounds.startColumn > item.bounds.endColumn
+      ));
+      if (overlaps) return project;
+      template.regions.push(structuredClone(region));
+      template.blocks.push({
+        id: `block-${region.id}`,
+        kind: region.blockKind,
+        regionId: region.id,
+        label: region.label,
+        settings: {}
+      });
+      const [major, minor, patch = "0"] = template.templateVersion.split(".");
+      template.templateVersion = `${major}.${minor}.${Number(patch) + 1}`;
       return next;
     }
   };
@@ -1101,6 +1320,121 @@ export function addSubpageCommand(serviceId: string, pageId: string): EditorComm
   };
 }
 
+export function addPageCommand(serviceId: string, pageNumber: string): EditorCommand {
+  const normalizedPageNumber = pageNumber.trim().toUpperCase();
+
+  return {
+    id: "add-page",
+    label: `Add page ${normalizedPageNumber}`,
+    apply: (project) => {
+      if (!/^[1-8][0-9A-F]{2}$/.test(normalizedPageNumber)) return project;
+      const next = cloneProject(project);
+      const service = next.services.find((item) => item.id === serviceId);
+      if (!service || service.pages.some((page) => page.pageNumber === normalizedPageNumber)) {
+        return project;
+      }
+
+      const subpage = makeSubpage(0);
+      subpage.id = `page-${normalizedPageNumber}-subpage-0000`;
+      service.pages.push({
+        id: `page-${normalizedPageNumber}`,
+        magazine: Number(normalizedPageNumber[0]) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
+        pageNumber: normalizedPageNumber,
+        title: "Untitled",
+        subpages: [subpage],
+        contentBindings: [],
+        metadata: {
+          description: `Pixelcast page ${normalizedPageNumber}.`,
+          tags: [],
+          publicationState: "draft",
+          targetPresentationLevel: service.defaultPresentationLevel,
+          receiverFontProfileId: "ets-1990s",
+          header: { clockMode: "local" }
+        },
+        links: []
+      });
+      service.pages.sort((left, right) => left.pageNumber.localeCompare(right.pageNumber));
+      next.metadata.updatedAt = new Date().toISOString();
+      return next;
+    }
+  };
+}
+
+export function replacePageWithCarouselCommand(
+  serviceId: string,
+  pageId: string,
+  frameRows: TeletextRow[][],
+  delaySeconds: number,
+  sourceSubpageId?: string
+): EditorCommand {
+  if (frameRows.length < 1 || frameRows.length > MAX_DISPLAY_SUBPAGES) {
+    throw new Error(`A display carousel requires between 1 and ${MAX_DISPLAY_SUBPAGES} subpages.`);
+  }
+
+  const safeDelaySeconds = Math.max(1, Math.min(120, delaySeconds));
+
+  return {
+    id: "replace-page-with-carousel",
+    label: frameRows.length === 1 ? "Place feed snapshot" : "Place feed story carousel",
+    apply(project) {
+      const next = cloneProject(project);
+      const service = next.services.find((item) => item.id === serviceId);
+      const page = service?.pages.find((item) => item.id === pageId);
+      if (!page) return project;
+
+      const sourceSubpage = page.subpages.find((item) => item.id === sourceSubpageId)
+        ?? page.subpages[0];
+      if (!sourceSubpage) return project;
+
+      const carouselEnabled = frameRows.length > 1;
+      page.subpages = frameRows.map((rows, pageIndex) => {
+        const subcode = displaySubpageSubcode(pageIndex, frameRows.length);
+        return {
+          id: `${page.id}-subpage-${subcode}`,
+          subcode,
+          rows: normalizeRows(structuredClone(rows) as TeletextRow[]),
+          enhancementPackets: structuredClone(sourceSubpage.enhancementPackets),
+          glyphReferences: structuredClone(sourceSubpage.glyphReferences),
+          carousel: {
+            enabled: carouselEnabled,
+            delaySeconds: safeDelaySeconds,
+            priority: sourceSubpage.carousel.priority
+          }
+        };
+      });
+
+      return next;
+    }
+  };
+}
+
+export function setPageCarouselEnabledCommand(
+  serviceId: string,
+  pageId: string,
+  enabled: boolean
+): EditorCommand {
+  return {
+    id: enabled ? "enable-page-carousel" : "disable-page-carousel",
+    label: enabled ? "Enable page carousel" : "Disable page carousel",
+    apply(project) {
+      const sourcePage = project.services
+        .find((service) => service.id === serviceId)
+        ?.pages.find((page) => page.id === pageId);
+      if (!sourcePage || sourcePage.subpages.every((subpage) => subpage.carousel.enabled === enabled)) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+      const page = next.services
+        .find((service) => service.id === serviceId)
+        ?.pages.find((candidatePage) => candidatePage.id === pageId);
+      if (!page) return project;
+      for (const subpage of page.subpages) subpage.carousel.enabled = enabled;
+      return next;
+    }
+  };
+}
+
 export function replaceSubpageRowsCommand(
   serviceId: string,
   pageId: string,
@@ -1125,6 +1459,175 @@ export function replaceSubpageRowsCommand(
       }
 
       subpage.rows = normalizeRows(structuredClone(rows) as TeletextRow[]);
+
+      return next;
+    }
+  };
+}
+
+export function storeContentSnapshotCommand(
+  source: ContentSource,
+  snapshot: ContentSnapshot,
+  binding?: ContentBinding
+): EditorCommand {
+  return {
+    id: binding ? "bind-content-source" : "store-content-snapshot",
+    label: binding ? "Bind content source" : "Store content snapshot",
+    apply: (project) => {
+      if (snapshot.sourceId !== source.id || (binding && binding.sourceId !== source.id)) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+      const sourceIndex = next.contentSources.findIndex((item) => item.id === source.id);
+      if (sourceIndex >= 0) next.contentSources[sourceIndex] = structuredClone(source);
+      else next.contentSources.push(structuredClone(source));
+
+      next.contentSnapshots = [
+        ...next.contentSnapshots.filter((item) => item.id !== snapshot.id),
+        structuredClone(snapshot)
+      ];
+      const snapshotsForSource = next.contentSnapshots
+        .filter((item) => item.sourceId === source.id)
+        .sort((left, right) => right.capturedAt.localeCompare(left.capturedAt));
+      const retainedIds = new Set(
+        snapshotsForSource.slice(0, source.cachePolicy.keepSnapshots).map((item) => item.id)
+      );
+      next.contentSnapshots = next.contentSnapshots.filter((item) =>
+        item.sourceId !== source.id || retainedIds.has(item.id)
+      );
+
+      if (binding) {
+        const page = next.services
+          .flatMap((service) => service.pages)
+          .find((item) => item.id === binding.targetPageId);
+        if (!page) return project;
+        const bindingIndex = page.contentBindings.findIndex((item) => item.id === binding.id);
+        if (bindingIndex >= 0) page.contentBindings[bindingIndex] = structuredClone(binding);
+        else page.contentBindings.push(structuredClone(binding));
+      }
+
+      return next;
+    }
+  };
+}
+
+export function removeContentBindingCommand(pageId: string, bindingId: string): EditorCommand {
+  return {
+    id: "remove-content-binding",
+    label: "Disconnect content source",
+    apply: (project) => {
+      const existingPage = project.services
+        .flatMap((service) => service.pages)
+        .find((page) => page.id === pageId);
+      if (!existingPage?.contentBindings.some((binding) => binding.id === bindingId)) return project;
+
+      const next = cloneProject(project);
+      const page = next.services
+        .flatMap((service) => service.pages)
+        .find((candidatePage) => candidatePage.id === pageId);
+      if (!page) return project;
+      page.contentBindings = page.contentBindings.filter((binding) => binding.id !== bindingId);
+      return next;
+    }
+  };
+}
+
+export function upsertContentSourceCommand(source: ContentSource): EditorCommand {
+  return {
+    id: "upsert-content-source",
+    label: "Save data source",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const sourceIndex = next.contentSources.findIndex((item) => item.id === source.id);
+
+      if (sourceIndex >= 0) next.contentSources[sourceIndex] = structuredClone(source);
+      else next.contentSources.push(structuredClone(source));
+
+      next.metadata.updatedAt = new Date().toISOString();
+      return next;
+    }
+  };
+}
+
+export function upsertTemplateCommand(template: Template): EditorCommand {
+  return {
+    id: "upsert-template",
+    label: `Import template ${template.name}`,
+    apply: (project) => {
+      const next = cloneProject(project);
+      const templateIndex = next.templates.findIndex((item) => item.id === template.id);
+
+      if (templateIndex >= 0) next.templates[templateIndex] = structuredClone(template);
+      else next.templates.push(structuredClone(template));
+
+      next.metadata.updatedAt = new Date().toISOString();
+      return next;
+    }
+  };
+}
+
+export function paintG3LineCommand(
+  serviceId: string,
+  pageId: string,
+  subpageId: string,
+  rowIndex: number,
+  column: number,
+  code: G3LineCode | undefined,
+  level1Fallback: boolean
+): EditorCommand {
+  return {
+    id: "paint-g3-line",
+    label: code === undefined ? "Erase G3 line glyph" : "Paint G3 line glyph",
+    apply: (project) => {
+      if (rowIndex < 1 || rowIndex > 24 || column < 0 || column > 39) {
+        return project;
+      }
+
+      const next = cloneProject(project);
+      const subpage = findMutableSubpage(next, serviceId, pageId, subpageId);
+
+      if (!subpage) {
+        return project;
+      }
+
+      const lines = new Map(
+        extractG3LineCells(subpage.enhancementPackets).map((cell) => [
+          `${cell.rowIndex}:${cell.column}`,
+          cell
+        ])
+      );
+      const key = `${rowIndex}:${column}`;
+      const previous = lines.get(key);
+
+      if (code === undefined) {
+        lines.delete(key);
+      } else {
+        lines.set(key, { rowIndex, column, code });
+      }
+
+      try {
+        subpage.enhancementPackets = replaceG3LineCells(
+          subpage.enhancementPackets,
+          [...lines.values()]
+        );
+      } catch {
+        return project;
+      }
+
+      const row = subpage.rows[rowIndex];
+
+      if (level1Fallback && code === G3_LINE_CODES.horizontal) {
+        row.cells[column] = textCell(column, "\u2013", row.cells[column].background);
+        row.cells[column].byte = 0x60;
+      } else if (
+        level1Fallback
+        && code === undefined
+        && previous?.code === G3_LINE_CODES.horizontal
+        && row.cells[column].byte === 0x60
+      ) {
+        row.cells[column] = emptyCell(column, row.cells[column].background);
+      }
 
       return next;
     }

@@ -5,7 +5,7 @@ These notes capture the current screenshot tracing approach for archival Ceefax/
 ## Current reference fixtures
 
 - `tests/fixtures/importTrace/ceefax-engineering-test-page.jpg` - extracted from `docs/references/teletext-ceefax-fonts-history.pdf`; useful because it contains controlled colour bars, row numbers, punctuation, upper/lowercase alphabets, digits, mosaic shapes, large text, and mixed foreground colours on one page.
-- The real GIF benchmark currently uses the local Downloads captures when `FORTYFORGE_TRACE_GIF_DIR` is set:
+- The real GIF benchmark currently uses the local Downloads captures when `PIXELCAST_TRACE_GIF_DIR` is set. `FORTYFORGE_TRACE_GIF_DIR` remains a schema-2 compatibility alias:
   - `page100-1982.gif`
   - `Page120-1982.gif`
   - `BBC image page102.gif`

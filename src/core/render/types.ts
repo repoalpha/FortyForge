@@ -15,6 +15,7 @@ export interface Level1CellRenderState {
 
 export interface RenderedLevel1Cell extends Level1CellRenderState {
   column: number;
+  heldMosaicSeparated?: boolean;
   source: Cell;
   visible: boolean;
   value: string;

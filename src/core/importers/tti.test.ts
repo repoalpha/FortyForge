@@ -73,4 +73,29 @@ describe("TTI import/export subset", () => {
     expect(tti).toContain("SC,0001");
     expect(tti).toContain("OL,1,Z");
   });
+
+  it("uses VBIT2 viewdata escapes for Level 1 control bytes", () => {
+    const project = createDefaultProject();
+    const row = project.services[0].pages[0].subpages[0].rows[1];
+    const bytes = [0x01, 0x0a, 0x0d, 0x1b, 0x20, 0x7f];
+
+    for (const [column, byte] of bytes.entries()) {
+      row.cells[column] = {
+        column,
+        kind: byte < 0x20 ? "control" : "character",
+        byte,
+        annotations: []
+      };
+    }
+
+    const tti = exportTti(project);
+    const imported = importTti(tti);
+    const importedBytes = imported.services[0].pages[0].subpages[0].rows[1].cells
+      .slice(0, bytes.length)
+      .map((cell) => cell.byte);
+
+    expect(tti).toContain(`OL,1,${String.fromCharCode(0x1b, 0x41, 0x1b, 0x4a, 0x1b, 0x4d, 0x1b, 0x5b)} ${String.fromCharCode(0x7f)}`);
+    expect(tti).not.toContain("\n\n");
+    expect(importedBytes).toEqual(bytes);
+  });
 });

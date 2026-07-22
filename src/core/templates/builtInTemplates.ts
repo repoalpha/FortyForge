@@ -1,4 +1,4 @@
-import type { Cell, Template, TemplateCategory, TemplateRegion, TeletextRow } from "../model/types";
+import type { Cell, NormalizedContentRecord, Template, TemplateCategory, TemplateFixture, TemplateRegion, TeletextRow } from "../model/types";
 
 const ROW_COUNT = 25;
 const COLUMN_COUNT = 40;
@@ -53,7 +53,9 @@ function region(
   endRow: number,
   kind: TemplateRegion["kind"],
   acceptedContentKinds: TemplateRegion["acceptedContentKinds"],
-  fallbackText: string
+  fallbackText: string,
+  blockKind: TemplateRegion["blockKind"] = "text",
+  attributionRequired = false
 ): TemplateRegion {
   return {
     id,
@@ -68,7 +70,10 @@ function region(
     acceptedContentKinds,
     lockedControlCodes: false,
     overflowPolicy: "wrap",
-    fallbackText
+    fallbackText,
+    blockKind,
+    characterPolicy: "level1-replace",
+    attributionRequired
   };
 }
 
@@ -80,6 +85,36 @@ function template(
   lines: string[],
   regions: TemplateRegion[] = []
 ): Template {
+  const sampleRecord: NormalizedContentRecord = {
+    id: "sample-record",
+    title: category === "weather" ? "Brisbane forecast" : category === "finance" ? "AUD exchange" : "Sample Pixelcast item",
+    summary: "A concise sample that demonstrates the normal production layout.",
+    body: "This fixture lets an editor review wrapping, spacing, attribution and page density before a source is connected.",
+    fields: {
+      currency: "USD",
+      rate: "0.6543",
+      move: "+0.0012",
+      temperature_2m: "24 C",
+      wind_speed_10m: "12 km/h",
+      weather_code: "Fine"
+    }
+  };
+  const fixtures: TemplateFixture[] = regions.length === 0 ? [] : [
+    { id: `${id}-sample`, label: "Sample content", kind: "sample", records: [sampleRecord] },
+    {
+      id: `${id}-long`,
+      label: "Worst-case long content",
+      kind: "long",
+      records: [{
+        ...sampleRecord,
+        id: "long-record",
+        title: "An intentionally long headline used to expose tight columns and unsafe control-code placement",
+        body: Array.from({ length: 60 }, (_, index) => `long-form sentence ${index + 1}`).join(" ")
+      }]
+    },
+    { id: `${id}-missing`, label: "Missing data", kind: "missing", records: [] },
+    { id: `${id}-stale`, label: "Stale last-known-good data", kind: "stale", records: [sampleRecord] }
+  ];
   return {
     id,
     name,
@@ -87,7 +122,24 @@ function template(
     category,
     targetPresentationLevel: "1",
     rows: createRows(lines),
-    regions
+    regions,
+    templateVersion: "1.0.0",
+    requiredPixelcastVersion: "0.2.0",
+    blocks: regions.map((item) => ({
+      id: `block-${item.id}`,
+      kind: item.blockKind,
+      regionId: item.id,
+      label: item.label,
+      settings: {}
+    })),
+    fixtures,
+    styleKit: {
+      id: "pixelcast-level1-default",
+      name: "Pixelcast Level 1",
+      permittedLevel1Colours: [0, 1, 2, 3, 4, 5, 6, 7],
+      dividerByte: 0x5f,
+      footerTemplate: "P{page}  {subpage}/{total}  MORE"
+    }
   };
 }
 
@@ -106,12 +158,13 @@ export const BUILT_IN_TEMPLATES: Template[] = [
     "A page 100-style menu with headline and link rows.",
     "index",
     [
-      "FORTYFORGE INDEX",
-      "FORTYFORGE  PAGE 100",
+      "PIXELCAST INDEX",
+      "PIXELCAST  PAGE 100",
       "",
       "101 NEWS",
-      "102 WEATHER",
-      "103 CLUB INFO",
+      "102 NEWS",
+      "400 BRISBANE WEATHER",
+      "500 AUD EXCHANGE",
       "199 ABOUT THIS SERVICE"
     ],
     [
@@ -123,16 +176,18 @@ export const BUILT_IN_TEMPLATES: Template[] = [
     "Article page",
     "Headline and article body layout for news or community updates.",
     "article",
-    ["ARTICLE", "HEADLINE", "", "BODY COPY STARTS HERE"],
+    ["NEWS", "", ""],
     [
       region(
         "main-content",
         "Main content",
-        3,
-        21,
+        2,
+        22,
         "dynamic",
         ["rss", "atom", "json", "text", "manual"],
-        "No current stories"
+        "No current stories",
+        "story",
+        true
       )
     ]
   ),
@@ -150,9 +205,51 @@ export const BUILT_IN_TEMPLATES: Template[] = [
         12,
         "dynamic",
         ["weather", "json", "manual"],
-        "Weather unavailable"
+        "Weather unavailable",
+        "weather",
+        true
       )
     ]
+  ),
+  template(
+    "headline-list-page",
+    "Headline list",
+    "Numbered headlines with space for page links and attribution.",
+    "article",
+    ["NEWS HEADLINES", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "SOURCE"],
+    [region("headline-list", "Headlines", 2, 21, "dynamic", ["rss", "atom", "json", "manual"], "No current headlines", "headline-list", true)]
+  ),
+  template(
+    "finance-page",
+    "Finance and FOREX",
+    "Dense financial table with update time, attribution, and disclaimer.",
+    "finance",
+    ["MARKETS AND EXCHANGE", "", "CURRENCY       RATE       MOVE", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "INFORMATIONAL ONLY"],
+    [region("finance-table", "Finance table", 3, 21, "dynamic", ["json", "csv", "rss", "manual"], "Market data unavailable", "key-value-table", true)]
+  ),
+  template(
+    "schedule-page",
+    "Schedule and flight board",
+    "Now-next, transport, or flight status rows.",
+    "schedule",
+    ["SCHEDULE", "", "TIME  SERVICE              STATUS"],
+    [region("schedule-table", "Schedule table", 3, 22, "dynamic", ["json", "csv", "manual"], "Schedule unavailable", "schedule", true)]
+  ),
+  template(
+    "advert-panel-page",
+    "Sponsor or advert panel",
+    "A reusable attribution, sponsor, or advertisement frame.",
+    "advert",
+    ["ADVERTISEMENT", ""],
+    [region("advert-copy", "Advert copy", 3, 20, "editable", ["manual", "json"], "", "text")]
+  ),
+  template(
+    "in-vision-page",
+    "Timed in-vision page",
+    "A presentation frame intended for scheduled full-screen display.",
+    "presentation",
+    ["PIXELCAST", "", "PRESENTATION"],
+    [region("presentation-body", "Presentation body", 4, 22, "dynamic", ["manual", "json", "rss"], "", "text", true)]
   ),
   template(
     "status-display",

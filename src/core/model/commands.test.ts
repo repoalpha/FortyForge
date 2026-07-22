@@ -15,6 +15,7 @@ import {
   insertControlCodeCommand,
   insertControlCodeWithRowShiftCommand,
   insertTextCommand,
+  addPageCommand,
   addSubpageCommand,
   captureMosaicGlyphCommand,
   clearCellRectangleCommand,
@@ -22,17 +23,23 @@ import {
   copyCellsFromRectangle,
   paintMosaicCommand,
   paintCellBackgroundCommand,
+  paintG3LineCommand,
   redo,
+  removeContentBindingCommand,
+  replacePageWithCarouselCommand,
   replaceSubpageRowsCommand,
   saveCellBlockAsArtworkCommand,
   saveCurrentPageAsTemplateCommand,
   stampMosaicTextCommand,
   stampCellBlockCommand,
   setPageHeaderClockModeCommand,
+  setPageCarouselEnabledCommand,
   setCellCommand,
+  upsertContentSourceCommand,
+  upsertTemplateCommand,
   undo
 } from "./commands";
-import type { Cell, MosaicAlphabet, TeletextRow } from "./types";
+import type { Cell, ContentSource, MosaicAlphabet, TeletextRow } from "./types";
 
 function emptyCell(column: number): Cell {
   return {
@@ -54,6 +61,29 @@ function replacementRows(): TeletextRow[] {
 
 const white = { palette: "level1" as const, index: 7 };
 const black = { palette: "level1" as const, index: 0 };
+
+function testContentSource(id = "source-test"): ContentSource {
+  return {
+    id,
+    kind: "json",
+    label: "Test source",
+    uri: "https://example.test/data.json",
+    enabled: true,
+    refreshPolicy: { mode: "interval", intervalSeconds: 300, staleAfterSeconds: 900, retryCount: 2 },
+    cachePolicy: { keepSnapshots: 5, allowStaleOnError: true },
+    fieldHints: {},
+    provider: "Example",
+    policy: {
+      licenceMode: "internal",
+      termsUrl: "https://example.test/terms",
+      permittedUse: "internal",
+      attributionRequired: false,
+      attributionText: "",
+      reviewedAt: "2026-07-21T00:00:00.000Z",
+      operatorApproved: true
+    }
+  };
+}
 
 function singleCellMosaicAlphabet(): MosaicAlphabet {
   return {
@@ -216,6 +246,35 @@ describe("editor commands", () => {
       .toBe(0b100000);
     expect(clearedTopLeft.services[0].pages[0].subpages[0].rows[5].cells[4].byte)
       .toBe(0x60);
+  });
+
+  it("writes Level 1 state controls around a directly painted coloured mosaic", () => {
+    const project = createDefaultProject();
+    const next = applyEditorCommand(
+      project,
+      paintMosaicCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        5,
+        4,
+        0x3f,
+        { palette: "level1", index: 1 }
+      )
+    );
+    const row = next.services[0].pages[0].subpages[0].rows[5];
+    const rendered = renderLevel1Row(row);
+
+    expect(row.cells[3]).toEqual(expect.objectContaining({ kind: "control", byte: 0x11 }));
+    expect(row.cells[5]).toEqual(expect.objectContaining({ kind: "control", byte: 0x07 }));
+    expect(rendered.cells[4]).toEqual(expect.objectContaining({
+      mode: "graphics",
+      foreground: { palette: "level1", index: 1 }
+    }));
+    expect(rendered.cells[6]).toEqual(expect.objectContaining({
+      mode: "text",
+      foreground: white
+    }));
   });
 
   it("inherits the active row background when sixel editing creates a mosaic cell", () => {
@@ -694,7 +753,7 @@ describe("editor commands", () => {
     expect(next.artworkBlocks[0].cells[0][0]).not.toBe(block.cells[0][0]);
   });
 
-  it("stamps PIXELCAST as mosaic cells without altering neighbouring cells", () => {
+  it("stamps PIXELCAST with a Level 1 control prelude and state restore", () => {
     const project = {
       ...createDefaultProject(),
       mosaicAlphabets: [singleCellMosaicAlphabet()]
@@ -717,11 +776,56 @@ describe("editor commands", () => {
 
     const row = next.services[0].pages[0].subpages[0].rows[10];
 
-    expect(row.cells[1].kind).toBe("empty");
+    expect(row.cells[1]).toEqual(expect.objectContaining({
+      kind: "control",
+      byte: 0x17
+    }));
     expect(row.cells[2].mosaic?.sixelMask).toBe(1);
     expect(row.cells[4].mosaic?.sixelMask).toBe(2);
     expect(row.cells[18].mosaic?.sixelMask).toBe(9);
-    expect(row.cells[19].kind).toBe("empty");
+    expect(row.cells[19]).toEqual(expect.objectContaining({
+      kind: "control",
+      byte: 0x07
+    }));
+    expect(renderLevel1Row(row).cells[2]).toEqual(expect.objectContaining({
+      mode: "graphics",
+      foreground: white
+    }));
+  });
+
+  it("transmits a coloured masthead with Level 1 graphics controls", () => {
+    const alphabet = singleCellMosaicAlphabet();
+    Object.values(alphabet.glyphs).forEach((glyph) => {
+      glyph.cells.forEach((cell) => {
+        cell.foreground = { palette: "level1", index: 1 };
+      });
+    });
+    const project = {
+      ...createDefaultProject(),
+      mosaicAlphabets: [alphabet]
+    };
+
+    const next = applyEditorCommand(
+      project,
+      stampMosaicTextCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        {
+          alphabetId: "alphabet-pixelcast",
+          text: "PIXELCAST",
+          rowIndex: 10,
+          column: 2
+        }
+      )
+    );
+    const row = next.services[0].pages[0].subpages[0].rows[10];
+
+    expect(row.cells[1]).toEqual(expect.objectContaining({ kind: "control", byte: 0x11 }));
+    expect(renderLevel1Row(row).cells[2]).toEqual(expect.objectContaining({
+      mode: "graphics",
+      foreground: { palette: "level1", index: 1 }
+    }));
   });
 
   it("does not stamp mosaic text when a required glyph is missing", () => {
@@ -1230,7 +1334,7 @@ describe("editor commands", () => {
     );
 
     expect(next.services[0].pages[0].metadata.templateId).toBe("index-page");
-    expect(next.services[0].pages[0].subpages[0].rows[1].cells[0].character?.value).toBe("F");
+    expect(next.services[0].pages[0].subpages[0].rows[1].cells[0].character?.value).toBe("P");
   });
 
   it("deletes custom templates without renumbering remaining template identities", () => {
@@ -1312,6 +1416,50 @@ describe("editor commands", () => {
     expect(project.services[0].pages[0].metadata.header.clockMode).toBe("local");
   });
 
+  it("paints and erases an X/26 G3 line with a Level 1 horizontal fallback", () => {
+    const project = createDefaultProject();
+    const painted = applyEditorCommand(
+      project,
+      paintG3LineCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        6,
+        4,
+        0x51,
+        true
+      )
+    );
+    const subpage = painted.services[0].pages[0].subpages[0];
+
+    expect(subpage.rows[6].cells[4]).toMatchObject({ kind: "character", byte: 0x60 });
+    expect(subpage.enhancementPackets.flatMap((packet) => packet.triplets)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ address: 46, mode: 0x04, data: 4 }),
+        expect.objectContaining({ address: 4, mode: 0x0b, data: 0x51 })
+      ])
+    );
+
+    const erased = applyEditorCommand(
+      painted,
+      paintG3LineCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        6,
+        4,
+        undefined,
+        true
+      )
+    );
+
+    expect(erased.services[0].pages[0].subpages[0].rows[6].cells[4]).toMatchObject({
+      kind: "empty",
+      byte: 0x20
+    });
+    expect(erased.services[0].pages[0].subpages[0].enhancementPackets).toEqual([]);
+  });
+
   it("adds fixed-width subpages to a page", () => {
     const project = createDefaultProject();
 
@@ -1325,6 +1473,156 @@ describe("editor commands", () => {
     expect(subpages[1].subcode).toBe("0001");
     expect(subpages[1].rows).toHaveLength(25);
     expect(subpages[1].rows[1].cells).toHaveLength(40);
+    expect(project.services[0].pages[0].subpages).toHaveLength(1);
+  });
+
+  it("adds a uniquely addressed blank page for another source binding", () => {
+    const project = createDefaultProject();
+    const next = addPageCommand("service-default", "10a").apply(project);
+    const added = next.services[0].pages.find((page) => page.pageNumber === "10A");
+
+    expect(added).toMatchObject({
+      id: "page-10A",
+      magazine: 1,
+      title: "Untitled",
+      contentBindings: []
+    });
+    expect(added?.subpages[0]).toMatchObject({
+      id: "page-10A-subpage-0000",
+      subcode: "0000"
+    });
+    expect(addPageCommand("service-default", "10A").apply(next)).toEqual(next);
+    expect(addPageCommand("service-default", "900").apply(project)).toEqual(project);
+  });
+
+  it("persistently enables and disables every subpage in a page carousel", () => {
+    const project = createDefaultProject();
+    const withSubpage = addSubpageCommand("service-default", "page-100").apply(project);
+    for (const subpage of withSubpage.services[0].pages[0].subpages) {
+      subpage.carousel.enabled = true;
+    }
+
+    const disabled = setPageCarouselEnabledCommand("service-default", "page-100", false).apply(withSubpage);
+    const enabled = setPageCarouselEnabledCommand("service-default", "page-100", true).apply(disabled);
+
+    expect(disabled.services[0].pages[0].subpages.every((subpage) => !subpage.carousel.enabled)).toBe(true);
+    expect(enabled.services[0].pages[0].subpages.every((subpage) => subpage.carousel.enabled)).toBe(true);
+    expect(withSubpage.services[0].pages[0].subpages.every((subpage) => subpage.carousel.enabled)).toBe(true);
+  });
+
+  it("adds and updates persistent data source definitions", () => {
+    const project = createDefaultProject();
+    const source = testContentSource();
+    const added = upsertContentSourceCommand(source).apply(project);
+    const updated = upsertContentSourceCommand({
+      ...source,
+      label: "Updated source",
+      refreshPolicy: { ...source.refreshPolicy, intervalSeconds: 60 }
+    }).apply(added);
+
+    expect(added.contentSources).toHaveLength(1);
+    expect(updated.contentSources).toHaveLength(1);
+    expect(updated.contentSources[0]).toMatchObject({
+      id: source.id,
+      label: "Updated source",
+      refreshPolicy: { intervalSeconds: 60 }
+    });
+    expect(project.contentSources).toEqual([]);
+  });
+
+  it("disconnects one live content binding without removing its source or page", () => {
+    const project = createDefaultProject();
+    const page = project.services[0].pages[0];
+    const source = testContentSource();
+    project.contentSources.push(source);
+    page.contentBindings.push({
+      id: "binding-news-main",
+      sourceId: source.id,
+      templateRegionId: "story-body",
+      targetPageId: page.id,
+      transform: {
+        maxItems: 1,
+        fields: [],
+        sort: "newest-first",
+        textCase: "preserve",
+        controlStyle: "region-default",
+        overflowPolicy: "add-subpage"
+      },
+      policy: {
+        approval: "manual",
+        allowStale: true,
+        onFailure: "keep-last-valid"
+      }
+    });
+
+    const next = removeContentBindingCommand(page.id, "binding-news-main").apply(project);
+
+    expect(next.services[0].pages[0].contentBindings).toEqual([]);
+    expect(next.contentSources).toHaveLength(1);
+    expect(project.services[0].pages[0].contentBindings).toHaveLength(1);
+  });
+
+  it("imports and replaces a portable template by stable identity", () => {
+    const project = createDefaultProject();
+    const template = structuredClone(project.templates[0] ?? {
+      id: "custom-template-imported",
+      name: "Imported template",
+      description: "Portable template",
+      category: "blank",
+      targetPresentationLevel: "1",
+      rows: replacementRows(),
+      regions: [],
+      templateVersion: "1.0.0",
+      requiredPixelcastVersion: "0.2.0",
+      blocks: [],
+      fixtures: []
+    });
+    const imported = upsertTemplateCommand(template).apply(project);
+    const updated = upsertTemplateCommand({ ...template, name: "Updated template" }).apply(imported);
+
+    expect(imported.templates).toHaveLength(1);
+    expect(updated.templates).toHaveLength(1);
+    expect(updated.templates[0].name).toBe("Updated template");
+  });
+
+  it("replaces a page with an ETSI-style timed story carousel", () => {
+    const project = createDefaultProject();
+    const first = replacementRows();
+    const second = replacementRows();
+    first[4].cells[1] = {
+      column: 1,
+      kind: "character",
+      byte: 0x41,
+      character: { value: "A", charset: "G0" },
+      annotations: []
+    };
+    second[4].cells[1] = {
+      column: 1,
+      kind: "character",
+      byte: 0x42,
+      character: { value: "B", charset: "G0" },
+      annotations: []
+    };
+
+    const next = applyEditorCommand(
+      project,
+      replacePageWithCarouselCommand(
+        "service-default",
+        "page-100",
+        [first, second],
+        7,
+        "page-100-subpage-0000"
+      )
+    );
+    const subpages = next.services[0].pages[0].subpages;
+
+    expect(subpages.map((subpage) => subpage.subcode)).toEqual(["0001", "0002"]);
+    expect(subpages.map((subpage) => subpage.carousel)).toEqual([
+      { enabled: true, delaySeconds: 7, priority: "normal" },
+      { enabled: true, delaySeconds: 7, priority: "normal" }
+    ]);
+    expect(subpages[0].rows[4].cells[1].character?.value).toBe("A");
+    expect(subpages[1].rows[4].cells[1].character?.value).toBe("B");
     expect(project.services[0].pages[0].subpages).toHaveLength(1);
   });
 

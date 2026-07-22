@@ -2,7 +2,7 @@
 
 ## Goal
 
-FortyForge should free horizontal space around the framebuffer while giving authors a fast, professional way to paint Level 1 mosaic sixels. The right side of Studio mode becomes an active tool dock for Mosaic mode and later glyph/DRCS tools, not a passive inspector column.
+Pixelcast Studio should free horizontal space around the framebuffer while giving authors a fast, professional way to paint Level 1 mosaic sixels. The right side of Studio mode becomes an active tool dock for Mosaic mode and later glyph/DRCS tools, not a passive inspector column.
 
 ## Scope
 

@@ -2,7 +2,7 @@
 
 ## Goal
 
-FortyForge should let authors preview English Level 1 pages with selectable receiver/font profiles while keeping the underlying page bytes ETSI-compatible and renderable by the RPI/PIT C++ software. It should also expose thin-line text glyphs, such as the SAA5050 horizontal rule, as byte-correct authoring actions instead of relying on Unicode keyboard input.
+Pixelcast Studio should let authors preview English Level 1 pages with selectable receiver/font profiles while keeping the underlying page bytes ETSI-compatible and renderable by the RPI/PIT C++ software. It should also expose thin-line text glyphs, such as the SAA5050 horizontal rule, as byte-correct authoring actions instead of relying on Unicode keyboard input.
 
 ## Principles
 

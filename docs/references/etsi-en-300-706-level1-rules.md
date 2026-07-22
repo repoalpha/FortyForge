@@ -2,7 +2,7 @@
 
 Source: ETSI EN 300 706 V1.2.1, downloaded locally as `docs/references/etsi-en-300-706-v1.2.1.pdf`.
 
-This note is a working summary for FortyForge implementation. It paraphrases the standard so the code can be checked against stable local rules without copying large sections of the PDF.
+This note is a working summary for Pixelcast Studio implementation. It paraphrases the standard so the code can be checked against stable local rules without copying large sections of the PDF.
 
 ## Row Defaults
 
@@ -17,10 +17,10 @@ This note is a working summary for FortyForge implementation. It paraphrases the
 
 - Packet X/0 is the page header packet. It contains page address, control bits, and 32 data bytes normally intended for display.
 - The header packet's control bits include suppress-header and inhibit-display behavior; these are packet metadata, not ordinary visible row cells in the editor.
-- FortyForge currently models the visible editor page as 25 rows: `X/0` plus rows `1` to `24`.
+- Pixelcast Studio currently models the visible editor page as 25 rows: `X/0` plus rows `1` to `24`.
 - Row labels in the editor should show `X/0` for the page header and `1` to `24` for body display rows.
 - Column labels in the editor should show author-facing positions `01` to `40`, while internal arrays remain zero-based `0` to `39`.
-- ETSI page-header packet X/0 reserves the final eight data bytes for the real-time clock in normal services. FortyForge maps that service clock slot to visible columns `33` to `40` in the 40-column editor view.
+- ETSI page-header packet X/0 reserves the final eight data bytes for the real-time clock in normal services. Pixelcast Studio maps that service clock slot to visible columns `33` to `40` in the 40-column editor view.
 - Header clock modes are `local` (generate an `HH:MM/SS` clock into columns `33` to `40`), `none` (leave the generated clock slot blank), and `original` (show the authored/imported row exactly).
 - In local or no-clock mode, generated header text owns X/0 character cells and the generated clock slot owns columns `33` to `40`. Authored control codes before the clock slot may still style the generated header. This prevents imported screenshot text or timestamps from being exported on top of the active service clock policy.
 
@@ -48,7 +48,7 @@ This note is a working summary for FortyForge implementation. It paraphrases the
 
 ## Delete/Recompute Rule
 
-- FortyForge should not store hidden formatting state in cells.
+- Pixelcast Studio should not store hidden formatting state in cells.
 - Rendering must recompute state left-to-right from row bytes.
 - If a generated blue-background helper sequence is fully deleted, the row returns to the start-of-row defaults: white foreground on black background.
 - If only `Alpha Blue` is deleted but `New Background` remains, `New Background` adopts the default white foreground, making the following background white. That is correct for the remaining byte stream.
@@ -56,4 +56,4 @@ This note is a working summary for FortyForge implementation. It paraphrases the
 ## Enhanced Colour Caveat
 
 - X/28 and M/29 packets can define CLUTs, default row/screen colours, colour-table remapping, and black-background substitution.
-- FortyForge currently implements the Level 1 default palette model for editor preview. Enhanced CLUT/remapping behavior belongs in the Level 2.5/3.5 roadmap.
+- Pixelcast Studio currently implements the Level 1 default palette model for editor preview. Enhanced CLUT/remapping behavior belongs in the Level 2.5/3.5 roadmap.

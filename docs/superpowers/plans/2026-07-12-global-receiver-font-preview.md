@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make receiver-font selection an immediately visible, project-wide FortyForge preview preference that survives refresh and never changes transmitted teletext bytes.
+**Goal:** Make receiver-font selection an immediately visible, project-wide Pixelcast Studio preview preference that survives refresh and never changes transmitted teletext bytes.
 
 **Architecture:** `App` owns one validated receiver-profile preference initialized from a dedicated local-storage key and passes it to `TeletextCanvas` and `ToolDock`. The canvas renderer resolves complete deterministic bitmap tables, while page metadata and export paths remain untouched. A styled native select preserves accessibility without introducing a custom menu component.
 
@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Receiver font is a global FortyForge preview preference, not page or transmission data.
+- Receiver font is a global Pixelcast Studio preview preference, not page or transmission data.
 - The preference changes only through deliberate interaction with the receiver-font selector.
 - The preference survives refresh and applies to every page.
 - `saa5050-classic` is the safe default for missing, unknown, or unreadable persisted values.
@@ -299,7 +299,7 @@ Run: `npx vitest run src/app/App.test.tsx -t "receiver font"`
 
 Expected: FAIL until the styled class and global explanatory copy exist.
 
-- [ ] **Step 3: Apply the existing FortyForge visual language**
+- [ ] **Step 3: Apply the existing Pixelcast Studio visual language**
 
 Wrap the label with `className="receiver-font-field"` and add:
 

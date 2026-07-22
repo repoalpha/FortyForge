@@ -8,6 +8,7 @@ import {
   FRAMEBUFFER_CELL_HEIGHT,
   FRAMEBUFFER_CELL_WIDTH,
   isCoveredByDoubleHeightCell,
+  level1RenderOptionsForPreview,
   mosaicMaskForRenderedCell,
   sixelIndexFromCellPoint,
   TeletextCanvas
@@ -37,6 +38,14 @@ function renderedCell(partial: Partial<RenderedLevel1Cell>): RenderedLevel1Cell 
 }
 
 describe("TeletextCanvas render helpers", () => {
+  it("uses only transmitted Level 1 state in PIT strict preview", () => {
+    expect(level1RenderOptionsForPreview("pit-strict")).toEqual({});
+    expect(level1RenderOptionsForPreview("studio-large")).toEqual({
+      useCellBackgroundColours: true,
+      useMosaicCellColours: true
+    });
+  });
+
   it("uses Level 1 background state for X/0 instead of forcing a blue band", () => {
     expect(
       displayBackgroundForRenderedCell(

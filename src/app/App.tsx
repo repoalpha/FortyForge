@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { PageNavigator } from "./components/PageNavigator";
 import {
@@ -9,9 +9,17 @@ import {
   type ReferenceZoom
 } from "./components/ReferenceImagePanel";
 import { TeletextCanvas } from "./components/TeletextCanvas";
+import type { FeedWorkspaceState } from "./components/FeedWorkbench";
+import {
+  automaticBoundSourceIdsDue,
+  fetchStudioSource,
+  STUDIO_AUTOMATION_CHECK_INTERVAL_MS
+} from "./feedAutomation";
 import { TemplateLibrary } from "./components/TemplateLibrary";
+import { ContentSourcesPanel } from "./components/ContentSourcesPanel";
 import {
   ToolDock,
+  type G3LinePaintMode,
   type MosaicPaintMode,
   type TraceCalibrationPosition,
   type TraceDockStatus
@@ -19,10 +27,8 @@ import {
 import { ValidationPanel } from "./components/ValidationPanel";
 import {
   createCalibratedTraceGrid,
-  createTraceGridFromBounds,
   detectEdgeAssistedTraceGrid,
   scanTeletextScreenshot,
-  traceTeletextScreenshot,
   type TraceCellHint,
   type TraceCellHintKind,
   type TraceGrid,
@@ -30,10 +36,13 @@ import {
   type TraceImageData
 } from "./importTrace/screenshotTrace";
 import {
+  addPageCommand,
   addSubpageCommand,
+  addTemplateRegionCommand,
   applyEditorCommand,
   applyTemplateCommand,
   composeExportRows,
+  compilePageContent,
   createCitynewsCompactMastheadAlphabet,
   createCitynewsMastheadAlphabet,
   createEditorHistory,
@@ -42,11 +51,16 @@ import {
   copyCellsFromRectangle,
   deleteCustomTemplateCommand,
   deleteCellWithRowShiftCommand,
+  displaySubpageSubcode,
   editMosaicSixelCommand,
   exportNativeProject,
+  exportTemplatePackage,
+  exportTemplateLibrary,
   exportTti,
   getControlCodeByByte,
   importNativeProject,
+  importTemplatePackage,
+  importTemplateLibrary,
   insertBlankSpacerWithRowShiftCommand,
   insertBackgroundColourWithRowShiftCommand,
   insertControlCodeWithRowShiftCommand,
@@ -54,14 +68,22 @@ import {
   insertTextCommand,
   paintMosaicCommand,
   paintCellBackgroundCommand,
+  paintG3LineCommand,
+  parseSourcePayload,
+  removeContentBindingCommand,
+  replaceG3LineCells,
+  replacePageWithCarouselCommand,
   replaceSubpageRowsCommand,
   saveCellBlockAsArtworkCommand,
   saveCurrentPageAsTemplateCommand,
+  setPageCarouselEnabledCommand,
   setMosaicForegroundCommand,
   setPageHeaderClockModeCommand,
-  setPageReceiverFontProfileCommand,
   stampCellBlockCommand,
-  stampMosaicTextCommand
+  stampMosaicTextCommand,
+  storeContentSnapshotCommand,
+  upsertContentSourceCommand,
+  upsertTemplateCommand
 } from "../core";
 import {
   commitEditorHistory,
@@ -76,18 +98,34 @@ import type { TeletextPreviewProfileId } from "./preview/teletextViewport";
 import type {
   CellBlock,
   CellRectangle,
+  ContentBinding,
+  ContentSnapshot,
+  ContentSource,
   EditorCommand,
   EditorHistory,
+  G3LineCell,
+  G3LineCode,
   MosaicAlphabet,
   PageHeaderSettings,
   Project,
   TeletextColourRef,
   TeletextFontProfileId,
-  TeletextRow
+  TeletextRow,
+  Template,
+  TemplateRegion
 } from "../core";
 
 type LayoutMode = "studio" | "playout";
-const LOCAL_PROJECT_KEY = "fortyforge.currentProject";
+const LOCAL_PROJECT_KEY = "pixelcast.currentProject";
+const LEGACY_LOCAL_PROJECT_KEY = "fortyforge.currentProject";
+const TEMPLATE_LIBRARY_KEY = "pixelcast.templateLibrary";
+const RECEIVER_FONT_PROFILE_KEY = "pixelcast.receiverFontProfile";
+const LEGACY_RECEIVER_FONT_PROFILE_KEY = "fortyforge.receiverFontProfile";
+const RECEIVER_FONT_PROFILE_IDS: readonly TeletextFontProfileId[] = [
+  "ets-1990s",
+  "saa5050-classic",
+  "tdatext-later"
+];
 const ILLEGAL_DOUBLE_HEIGHT_ROWS = new Set([0, 24]);
 const DEFAULT_REFERENCE_PANEL_WIDTH = 460;
 const MIN_REFERENCE_PANEL_WIDTH = 280;
@@ -199,25 +237,115 @@ function traceCellTopPercent(selection: CellSelection, alignment: ReferenceGridA
   return alignment.topPercent + ((selection.rowIndex / 25) * heightPercent);
 }
 
-function loadInitialHistory() {
-  const savedProject = window.localStorage.getItem(LOCAL_PROJECT_KEY);
+function mergeStoredTemplates(project: Project, projectText?: string) {
+  const storedLibrary = window.localStorage.getItem(TEMPLATE_LIBRARY_KEY);
+  const templates = [
+    ...(storedLibrary ? importTemplateLibrary(storedLibrary) : []),
+    ...(projectText ? importTemplateLibrary(projectText) : []),
+    ...project.templates
+  ];
+  const byId = new Map(templates.map((template) => [template.id, template]));
+  const next = structuredClone(project) as Project;
+  next.templates = [...byId.values()];
+  return next;
+}
 
-  if (!savedProject) {
-    return createInitialEditorHistory();
+interface BrowserPersistenceResult {
+  ok: boolean;
+  bytes: number;
+}
+
+function tryWriteBrowserStorage(key: string, value: string): BrowserPersistenceResult {
+  try {
+    window.localStorage.setItem(key, value);
+    return { ok: true, bytes: new Blob([value]).size };
+  } catch {
+    return { ok: false, bytes: new Blob([value]).size };
+  }
+}
+
+function createBrowserAutosaveProject(project: Project): Project {
+  const compact = structuredClone(project) as Project;
+  const retainedSnapshotIds = new Set<string>();
+
+  compact.contentSources.forEach((source) => {
+    compact.contentSnapshots
+      .filter((snapshot) => snapshot.sourceId === source.id)
+      .sort((left, right) => right.capturedAt.localeCompare(left.capturedAt))
+      .slice(0, 2)
+      .forEach((snapshot) => retainedSnapshotIds.add(snapshot.id));
+  });
+  compact.contentSnapshots = compact.contentSnapshots.filter((snapshot) =>
+    retainedSnapshotIds.has(snapshot.id)
+  );
+
+  // Templates have their own independently recoverable browser library. Keeping
+  // another full cell-by-cell copy inside the autosaved project can double the
+  // storage footprint and exhaust the browser quota.
+  compact.templates = [];
+  return compact;
+}
+
+function persistProjectLocally(project: Project) {
+  return tryWriteBrowserStorage(
+    LOCAL_PROJECT_KEY,
+    exportNativeProject(createBrowserAutosaveProject(project))
+  );
+}
+
+function persistTemplateLibrary(project: Project) {
+  return tryWriteBrowserStorage(TEMPLATE_LIBRARY_KEY, exportTemplateLibrary(project.templates));
+}
+
+function browserStorageWarning(action: string, bytes: number) {
+  const megabytes = (bytes / (1024 * 1024)).toFixed(1);
+  return `${action} in this session, but browser autosave is full (${megabytes} MB project). Download the project to disk before refreshing.`;
+}
+
+function loadInitialHistory() {
+  const savedProject = window.localStorage.getItem(LOCAL_PROJECT_KEY)
+    ?? window.localStorage.getItem(LEGACY_LOCAL_PROJECT_KEY);
+  let project = createInitialEditorHistory().present;
+  try {
+    if (savedProject) {
+      project = importNativeProject(savedProject);
+    }
+  } catch {
+    // A damaged project must not make the independent template library unavailable.
   }
 
-  try {
-    let importedProject = importNativeProject(savedProject);
+  project = mergeStoredTemplates(project, savedProject ?? undefined);
+  if (project.mosaicAlphabets.some((alphabet) => alphabet.id === "dev-pixelcast-alphabet")) {
+    project.mosaicAlphabets = [];
+  }
+  project = refreshBuiltInMastheadAlphabets(project);
 
-    if (importedProject.mosaicAlphabets.some((alphabet) => alphabet.id === "dev-pixelcast-alphabet")) {
-      importedProject.mosaicAlphabets = [];
+  persistProjectLocally(project);
+  try {
+    window.localStorage.removeItem(LEGACY_LOCAL_PROJECT_KEY);
+  } catch {
+    // A full or unavailable browser store must not prevent Studio from opening.
+  }
+  persistTemplateLibrary(project);
+
+  return createEditorHistory(project);
+}
+
+function loadReceiverFontProfile(): TeletextFontProfileId {
+  try {
+    const savedProfile = window.localStorage.getItem(RECEIVER_FONT_PROFILE_KEY)
+      ?? window.localStorage.getItem(LEGACY_RECEIVER_FONT_PROFILE_KEY);
+
+    if (savedProfile) {
+      window.localStorage.setItem(RECEIVER_FONT_PROFILE_KEY, savedProfile);
+      window.localStorage.removeItem(LEGACY_RECEIVER_FONT_PROFILE_KEY);
     }
 
-    importedProject = refreshBuiltInMastheadAlphabets(importedProject);
-
-    return createEditorHistory(importedProject);
+    return RECEIVER_FONT_PROFILE_IDS.includes(savedProfile as TeletextFontProfileId)
+      ? savedProfile as TeletextFontProfileId
+      : "ets-1990s";
   } catch {
-    return createInitialEditorHistory();
+    return "ets-1990s";
   }
 }
 
@@ -230,6 +358,25 @@ function downloadTextFile(filename: string, content: string, type: string) {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadBinaryFile(filename: string, content: Uint8Array, type: string) {
+  const blob = new Blob([new Uint8Array(content)], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function templateFilename(template: Template) {
+  const name = template.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "template";
+  return `${name}-v${template.templateVersion}.pixelcast-template`;
 }
 
 function loadHtmlImage(url: string) {
@@ -288,10 +435,12 @@ function importTraceRowsCommand(
   serviceId: string,
   pageId: string,
   subpageId: string,
-  rows: TeletextRow[]
+  rows: TeletextRow[],
+  g3LineCells: G3LineCell[] = []
 ): EditorCommand {
   const replaceRows = replaceSubpageRowsCommand(serviceId, pageId, subpageId, rows);
   const useOriginalHeader = setPageHeaderClockModeCommand(serviceId, pageId, "original");
+  const disableCarousel = setPageCarouselEnabledCommand(serviceId, pageId, false);
 
   return {
     id: "import-trace-rows",
@@ -299,7 +448,21 @@ function importTraceRowsCommand(
     apply(project) {
       const withRows = replaceRows.apply(project);
 
-      return withRows === project ? project : useOriginalHeader.apply(withRows);
+      if (withRows !== project) {
+        const service = withRows.services.find((item) => item.id === serviceId);
+        const page = service?.pages.find((item) => item.id === pageId);
+        const subpage = page?.subpages.find((item) => item.id === subpageId);
+
+        if (subpage) {
+          subpage.enhancementPackets = replaceG3LineCells(
+            subpage.enhancementPackets,
+            g3LineCells
+          );
+        }
+      }
+
+      if (withRows === project) return project;
+      return disableCarousel.apply(useOriginalHeader.apply(withRows));
     }
   };
 }
@@ -360,6 +523,8 @@ function traceGridLineAnchorsFromEdges(
 
 export function App() {
   const [history, setHistory] = useState(loadInitialHistory);
+  const [receiverFontProfileId, setReceiverFontProfileId] =
+    useState<TeletextFontProfileId>(loadReceiverFontProfile);
   const [selection, setSelection] = useState<CellSelection | undefined>();
   const [rectangleSelection, setRectangleSelection] = useState<CellRectangle | undefined>();
   const [blockClipboard, setBlockClipboard] = useState<CellBlock | undefined>();
@@ -367,6 +532,8 @@ export function App() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("studio");
   const [previewProfileId, setPreviewProfileId] =
     useState<TeletextPreviewProfileId>("studio-large");
+  const [animateFlash, setAnimateFlash] = useState(true);
+  const [revealConcealed, setRevealConcealed] = useState(false);
   const [activeTool, setActiveTool] = useState<EditorTool>("text");
   const [traceStatus, setTraceStatus] = useState<TraceDockStatus>(INITIAL_TRACE_STATUS);
   const [traceReferenceImage, setTraceReferenceImage] = useState<TraceReferenceImage | undefined>();
@@ -388,19 +555,147 @@ export function App() {
     useState<ReferencePanelResizeDrag | undefined>();
   const [mosaicPaintMode, setMosaicPaintMode] =
     useState<MosaicPaintMode>({ kind: "inactive" });
+  const [linePaintMode, setLinePaintMode] = useState<G3LinePaintMode>({
+    code: 0x51,
+    level1Fallback: true
+  });
   const [mosaicForeground, setMosaicForeground] =
     useState<TeletextColourRef>({ palette: "level1", index: 7 });
   const [clockNow, setClockNow] = useState(() => new Date());
   const [saveMessage, setSaveMessage] = useState("Not saved");
+  const [activePageId, setActivePageId] = useState<string | undefined>();
   const [activeSubpageId, setActiveSubpageId] = useState<string | undefined>();
+  const [generatedPreviewIndex, setGeneratedPreviewIndex] = useState<number | undefined>();
+  const [feedWorkspace, setFeedWorkspace] = useState<FeedWorkspaceState | undefined>();
+  const [carouselPlaying, setCarouselPlaying] = useState(false);
+  const currentProjectRef = useRef(history.present);
+  const automaticRefreshInFlightRef = useRef(new Set<string>());
   const editor = useMemo(
-    () => createEditorViewModel(history.present, activeSubpageId),
-    [activeSubpageId, history.present]
+    () => createEditorViewModel(history.present, activePageId, activeSubpageId),
+    [activePageId, activeSubpageId, history.present]
   );
+  const generatedPreviews = useMemo(
+    () => compilePageContent(editor.project, editor.page),
+    [editor.page, editor.project]
+  );
+  const generatedPreview = generatedPreviewIndex === undefined
+    ? undefined
+    : generatedPreviews[Math.min(generatedPreviewIndex, generatedPreviews.length - 1)];
+  const previewSubpage = generatedPreview
+    ? {
+        ...editor.subpage,
+        subcode: generatedPreview.subcode,
+        rows: generatedPreview.rows,
+        enhancementPackets: generatedPreview.enhancementPackets
+      }
+    : editor.subpage;
   const displayRows = useMemo(
-    () => composeExportRows(editor.page, editor.subpage, clockNow),
-    [clockNow, editor.page, editor.subpage]
+    () => composeExportRows(editor.page, previewSubpage, clockNow),
+    [clockNow, editor.page, previewSubpage]
   );
+  const carouselSubpages = useMemo(
+    () => editor.page.subpages.filter((subpage) => subpage.carousel.enabled),
+    [editor.page.subpages]
+  );
+  const carouselPosition = carouselSubpages.findIndex((subpage) => subpage.id === editor.subpage.id);
+
+  useEffect(() => {
+    setGeneratedPreviewIndex(editor.page.contentBindings.length > 0 ? 0 : undefined);
+  }, [editor.page.id]);
+
+  useEffect(() => {
+    currentProjectRef.current = history.present;
+  }, [history.present]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    async function refreshSource(sourceId: string) {
+      if (automaticRefreshInFlightRef.current.has(sourceId)) return;
+      const source = currentProjectRef.current.contentSources.find((item) => item.id === sourceId);
+      if (!source) return;
+      automaticRefreshInFlightRef.current.add(sourceId);
+      const capturedAt = new Date();
+      let snapshot: ContentSnapshot;
+
+      try {
+        const result = await fetchStudioSource(source);
+        const records = parseSourcePayload(source, result.payload);
+        if (records.length === 0) throw new Error("The source contained no readable records.");
+        snapshot = {
+          id: `${source.id}-${capturedAt.getTime()}`,
+          sourceId: source.id,
+          capturedAt: result.fetchedAt || capturedAt.toISOString(),
+          status: "ok",
+          records,
+          attributionText: source.policy.attributionText || undefined,
+          sourceUri: result.finalUrl || source.uri
+        };
+      } catch (error) {
+        snapshot = {
+          id: `${source.id}-${capturedAt.getTime()}-error`,
+          sourceId: source.id,
+          capturedAt: capturedAt.toISOString(),
+          status: "error",
+          records: [],
+          errorMessage: error instanceof Error ? error.message : "Automatic refresh failed.",
+          attributionText: source.policy.attributionText || undefined,
+          sourceUri: source.uri
+        };
+      }
+
+      if (!disposed) {
+        setHistory((currentHistory) => {
+          const currentSource = currentHistory.present.contentSources.find((item) => item.id === sourceId);
+          const stillBound = currentHistory.present.services.some((service) =>
+            service.pages.some((page) => page.contentBindings.some((binding) => binding.sourceId === sourceId))
+          );
+          if (
+            !currentSource
+            || !currentSource.enabled
+            || currentSource.refreshPolicy.mode !== "interval"
+            || !stillBound
+          ) {
+            return currentHistory;
+          }
+          const nextProject = storeContentSnapshotCommand(currentSource, snapshot).apply(currentHistory.present);
+          if (nextProject === currentHistory.present) return currentHistory;
+          const persistence = persistProjectLocally(nextProject);
+          if (!persistence.ok) {
+            window.setTimeout(() => setSaveMessage(
+              browserStorageWarning(`Refreshed ${source.label}`, persistence.bytes)
+            ), 0);
+          }
+          return {
+            past: currentHistory.past,
+            present: nextProject,
+            future: []
+          };
+        });
+        setSaveMessage(snapshot.status === "ok"
+          ? `Automatically refreshed ${source.label}`
+          : `Automatic refresh failed for ${source.label}: ${snapshot.errorMessage}`);
+      }
+      automaticRefreshInFlightRef.current.delete(sourceId);
+    }
+
+    function refreshDueSources() {
+      const dueSourceIds = automaticBoundSourceIdsDue(currentProjectRef.current, new Date());
+      dueSourceIds.forEach((sourceId) => void refreshSource(sourceId));
+    }
+
+    refreshDueSources();
+    const timer = window.setInterval(refreshDueSources, STUDIO_AUTOMATION_CHECK_INTERVAL_MS);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeTool === "import-trace") setCarouselPlaying(false);
+  }, [activeTool]);
 
   useEffect(() => {
     setHistory((currentHistory) =>
@@ -413,6 +708,62 @@ export function App() {
 
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (
+      !carouselPlaying
+      || carouselSubpages.length < 2
+      || feedWorkspace
+      || generatedPreviewIndex !== undefined
+    ) {
+      return undefined;
+    }
+
+    const currentIndex = carouselPosition >= 0 ? carouselPosition : 0;
+    const current = carouselSubpages[currentIndex];
+    const timer = window.setTimeout(() => {
+      const next = carouselSubpages[(currentIndex + 1) % carouselSubpages.length];
+      setActiveSubpageId(next.id);
+      setSelection(undefined);
+      setRectangleSelection(undefined);
+    }, current.carousel.delaySeconds * 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    carouselPlaying,
+    carouselPosition,
+    carouselSubpages,
+    feedWorkspace,
+    generatedPreviewIndex
+  ]);
+
+  useEffect(() => {
+    if (
+      !carouselPlaying
+      || generatedPreviewIndex === undefined
+      || generatedPreviews.length < 2
+      || feedWorkspace
+    ) {
+      return undefined;
+    }
+
+    const delaySeconds = Math.max(2, editor.subpage.carousel.delaySeconds || 8);
+    const timer = window.setTimeout(() => {
+      setGeneratedPreviewIndex((current) =>
+        current === undefined ? 0 : (current + 1) % generatedPreviews.length
+      );
+      setSelection(undefined);
+      setRectangleSelection(undefined);
+    }, delaySeconds * 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    carouselPlaying,
+    editor.subpage.carousel.delaySeconds,
+    feedWorkspace,
+    generatedPreviewIndex,
+    generatedPreviews.length
+  ]);
 
   useEffect(() => () => {
     if (traceReferenceImage) {
@@ -490,24 +841,251 @@ export function App() {
         deleteCustomTemplateCommand(templateId)
       );
 
-      window.localStorage.setItem(LOCAL_PROJECT_KEY, exportNativeProject(nextHistory.present));
+      persistProjectLocally(nextHistory.present);
+      persistTemplateLibrary(nextHistory.present);
       setSaveMessage(`Deleted ${template.name}`);
 
       return nextHistory;
     });
   }
 
-  function commitSubpageAdd() {
-    const nextSubpageId = `subpage-${editor.page.subpages.length.toString().padStart(4, "0")}`;
+  function addTemplateRegion(templateId: string, region: TemplateRegion) {
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(
+        currentHistory,
+        addTemplateRegionCommand(templateId, region)
+      );
+      persistProjectLocally(nextHistory.present);
+      persistTemplateLibrary(nextHistory.present);
+      return nextHistory;
+    });
+    setSaveMessage(`Added ${region.label} slot`);
+  }
+
+  function placeFeedSnapshot(
+    source: ContentSource,
+    snapshot: ContentSnapshot,
+    frames: TeletextRow[][],
+    delaySeconds: number
+  ) {
+    const replace = replacePageWithCarouselCommand(
+      editor.service.id,
+      editor.page.id,
+      frames,
+      delaySeconds,
+      editor.subpage.id
+    );
+    const store = storeContentSnapshotCommand(source, snapshot);
+    const command: EditorCommand = {
+      id: "place-feed-snapshot",
+      label: "Place feed snapshot",
+      apply(project) {
+        const replaced = replace.apply(project);
+        return replaced === project ? project : store.apply(replaced);
+      }
+    };
+
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(currentHistory, command);
+      const persistence = persistProjectLocally(nextHistory.present);
+      if (!persistence.ok) {
+        window.setTimeout(() => setSaveMessage(
+          browserStorageWarning(`Placed ${source.label}`, persistence.bytes)
+        ), 0);
+      }
+      return nextHistory;
+    });
+    const firstSubcode = displaySubpageSubcode(0, frames.length);
+    setActiveSubpageId(`${editor.page.id}-subpage-${firstSubcode}`);
+    setCarouselPlaying(false);
+    setSelection(undefined);
+    setRectangleSelection(undefined);
+    setSaveMessage(frames.length > 1
+      ? `Placed ${source.label} as ${frames.length} selectable subpages on page ${editor.page.pageNumber}. Press Play carousel when you want automatic rotation.`
+      : `Placed ${source.label} snapshot in page ${editor.page.pageNumber}`);
+  }
+
+  function bindFeedToSlot(
+    source: ContentSource,
+    snapshot: ContentSnapshot,
+    templateRegionId: string,
+    fields: string[],
+    bounds: CellRectangle,
+    attributionGapRows: number
+  ) {
+    const template = editor.templates.find((item) => item.id === editor.page.metadata.templateId);
+    const region = template?.regions.find((item) => item.id === templateRegionId);
+    if (!template || !region) {
+      setSaveMessage("Apply a template with a compatible content slot before binding the feed.");
+      return;
+    }
+
+    const binding: ContentBinding = {
+      id: `binding-${editor.page.id}-${templateRegionId}`,
+      sourceId: source.id,
+      templateRegionId,
+      targetPageId: editor.page.id,
+      targetSubpageId: editor.subpage.id,
+      transform: {
+        maxItems: 1,
+        fields: fields.map((sourceField) => ({
+          sourceField,
+          maxChars: 4000,
+          includeWhenEmpty: false
+        })),
+        sort: "newest-first",
+        textCase: "preserve",
+        controlStyle: "region-default",
+        overflowPolicy: region.overflowPolicy,
+        attributionGapRows
+      },
+      policy: {
+        approval: "manual",
+        staleAfterSeconds: source.refreshPolicy.staleAfterSeconds,
+        allowStale: source.cachePolicy.allowStaleOnError,
+        onFailure: source.cachePolicy.allowStaleOnError ? "keep-last-valid" : "reject-publication"
+      }
+    };
+
+    const store = storeContentSnapshotCommand(source, snapshot, binding);
+    const command: EditorCommand = {
+      id: "bind-feed-to-protected-slot",
+      label: "Bind feed to protected template slot",
+      apply(project) {
+        const next = store.apply(project);
+        if (next === project) return project;
+        const storedTemplate = next.templates.find((item) => item.id === template.id);
+        const storedRegion = storedTemplate?.regions.find((item) => item.id === templateRegionId);
+        if (storedTemplate && storedRegion && JSON.stringify(storedRegion.bounds) !== JSON.stringify(bounds)) {
+          storedRegion.bounds = structuredClone(bounds);
+          const [major, minor, patch = "0"] = storedTemplate.templateVersion.split(".");
+          storedTemplate.templateVersion = `${major}.${minor}.${Number(patch) + 1}`;
+        }
+        return next;
+      }
+    };
+
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(currentHistory, command);
+      const persistence = persistProjectLocally(nextHistory.present);
+      if (!persistence.ok) {
+        window.setTimeout(() => setSaveMessage(
+          browserStorageWarning(`Bound ${source.label}`, persistence.bytes)
+        ), 0);
+      }
+      persistTemplateLibrary(nextHistory.present);
+      return nextHistory;
+    });
+    setGeneratedPreviewIndex(0);
+    setCarouselPlaying(false);
+    setSaveMessage(`Bound ${source.label} to ${region.label}`);
+  }
+
+  function saveFeedSource(source: ContentSource) {
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(currentHistory, upsertContentSourceCommand(source));
+      const persistence = persistProjectLocally(nextHistory.present);
+      if (!persistence.ok) {
+        window.setTimeout(() => setSaveMessage(
+          browserStorageWarning(`Saved ${source.label}`, persistence.bytes)
+        ), 0);
+      }
+      return nextHistory;
+    });
+    setSaveMessage(`Saved data source ${source.label}`);
+  }
+
+  function saveFeedSourceSnapshot(source: ContentSource, snapshot: ContentSnapshot) {
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(
+        currentHistory,
+        storeContentSnapshotCommand(source, snapshot)
+      );
+      const persistence = persistProjectLocally(nextHistory.present);
+      if (!persistence.ok) {
+        window.setTimeout(() => setSaveMessage(
+          browserStorageWarning(`Refreshed ${source.label}`, persistence.bytes)
+        ), 0);
+      }
+      return nextHistory;
+    });
+    setSaveMessage(`Refreshed data source ${source.label}`);
+  }
+
+  function selectFeedTargetPage(pageId: string) {
+    if (!pageId) {
+      setFeedWorkspace(undefined);
+      setGeneratedPreviewIndex(undefined);
+      return;
+    }
+    const targetPage = editor.service.pages.find((candidate) => candidate.id === pageId);
+    if (!targetPage) return;
+    const targetChanged = targetPage.id !== editor.page.id;
+    setActivePageId(targetPage.id);
+    if (targetChanged) setActiveSubpageId(targetPage.subpages[0]?.id);
+    setGeneratedPreviewIndex(undefined);
+    setSelection(undefined);
+    if (targetChanged) setRectangleSelection(undefined);
+  }
+
+  function removeFeedBinding(pageId: string, bindingId: string) {
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(
+        currentHistory,
+        removeContentBindingCommand(pageId, bindingId)
+      );
+      persistProjectLocally(nextHistory.present);
+      return nextHistory;
+    });
+    setFeedWorkspace(undefined);
+    setGeneratedPreviewIndex(undefined);
+    setSaveMessage("Disconnected live feed binding");
+  }
+
+  function commitSubpageAdd(pageId: string) {
+    const page = editor.service.pages.find((item) => item.id === pageId) ?? editor.page;
+    const nextSubpageId = `subpage-${page.subpages.length.toString().padStart(4, "0")}`;
 
     setHistory((currentHistory) =>
       commitEditorHistory(
         currentHistory,
-        addSubpageCommand(editor.service.id, editor.page.id)
+        addSubpageCommand(editor.service.id, page.id)
       )
     );
+    setActivePageId(page.id);
     setActiveSubpageId(nextSubpageId);
     setSelection(undefined);
+  }
+
+  function commitPageAdd(pageNumber: string) {
+    const normalizedPageNumber = pageNumber.toUpperCase();
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(
+        currentHistory,
+        addPageCommand(editor.service.id, normalizedPageNumber)
+      );
+      persistProjectLocally(nextHistory.present);
+      return nextHistory;
+    });
+    setActivePageId(`page-${normalizedPageNumber}`);
+    setActiveSubpageId(`page-${normalizedPageNumber}-subpage-0000`);
+    setGeneratedPreviewIndex(undefined);
+    setSelection(undefined);
+    setRectangleSelection(undefined);
+    setSaveMessage(`Added page ${normalizedPageNumber}`);
+  }
+
+  function commitPageCarouselEnabled(enabled: boolean) {
+    setHistory((currentHistory) => {
+      const nextHistory = commitEditorHistory(
+        currentHistory,
+        setPageCarouselEnabledCommand(editor.service.id, editor.page.id, enabled)
+      );
+      persistProjectLocally(nextHistory.present);
+      return nextHistory;
+    });
+    setCarouselPlaying(enabled);
+    setSaveMessage(enabled ? "Enabled page carousel" : "Disabled page carousel");
   }
 
   function commitText(value: string) {
@@ -780,6 +1358,34 @@ export function App() {
     setSelection({ rowIndex, column });
   }
 
+  function commitG3LinePaint(
+    rowIndex: number,
+    column: number,
+    code: G3LineCode | undefined,
+    options: { coalesceWithPrevious?: boolean } = {}
+  ) {
+    const command = paintG3LineCommand(
+      editor.service.id,
+      editor.page.id,
+      editor.subpage.id,
+      rowIndex,
+      column,
+      code,
+      linePaintMode.level1Fallback
+    );
+
+    setHistory((currentHistory) =>
+      options.coalesceWithPrevious
+        ? {
+            past: currentHistory.past,
+            present: applyEditorCommand(currentHistory.present, command),
+            future: []
+          }
+        : commitEditorHistory(currentHistory, command)
+    );
+    setSelection({ rowIndex, column });
+  }
+
   function commitMosaicTextStamp(alphabetId: string, text: string, rowIndex: number, column: number) {
     const stampTarget = { rowIndex, column };
 
@@ -909,12 +1515,13 @@ export function App() {
   }
 
   function commitReceiverFontProfile(profileId: TeletextFontProfileId) {
-    setHistory((currentHistory) =>
-      commitEditorHistory(
-        currentHistory,
-        setPageReceiverFontProfileCommand(editor.service.id, editor.page.id, profileId)
-      )
-    );
+    setReceiverFontProfileId(profileId);
+
+    try {
+      tryWriteBrowserStorage(RECEIVER_FONT_PROFILE_KEY, profileId);
+    } catch {
+      // The in-memory preference remains usable when storage is unavailable.
+    }
   }
 
   function undoEdit() {
@@ -943,6 +1550,17 @@ export function App() {
     setTraceStatus({
       state: "idle",
       message: `Reference loaded: ${file.name}`,
+      warnings: []
+    });
+  }
+
+  function closeTraceReference() {
+    setTraceReferenceImage(undefined);
+    setTraceCellHints([]);
+    setTraceSelectedCell(undefined);
+    setTraceStatus({
+      state: "idle",
+      message: "Reference closed. The scanned teletext page remains editable.",
       warnings: []
     });
   }
@@ -1030,66 +1648,6 @@ export function App() {
     });
   }
 
-  async function importTraceReference() {
-    if (!traceReferenceImage) {
-      return;
-    }
-
-    const file = traceReferenceImage.file;
-
-    setTraceStatus({
-      state: "loading",
-      message: `Tracing ${file.name}...`,
-      warnings: []
-    });
-
-    try {
-      const imageData = await imageDataFromFile(file);
-      const traceGridBounds = traceGridBoundsFromAlignment(imageData, traceGridAlignment);
-      const hasCalibration =
-        traceGridCalibration.xAnchors.length > 0 || traceGridCalibration.yAnchors.length > 0;
-      const traceGrid = hasCalibration
-        ? createCalibratedTraceGrid(imageData, traceGridBounds, {
-          xAnchors: traceGridCalibration.xAnchors.map((anchor) => ({
-            lineIndex: anchor.lineIndex,
-            position: (imageData.width * anchor.percent) / 100
-          })),
-          yAnchors: traceGridCalibration.yAnchors.map((anchor) => ({
-            lineIndex: anchor.lineIndex,
-            position: (imageData.height * anchor.percent) / 100
-          }))
-        })
-        : createTraceGridFromBounds(imageData, traceGridBounds);
-      const trace = traceTeletextScreenshot(imageData, traceGrid, traceCellHints);
-
-      setHistory((currentHistory) =>
-        commitEditorHistory(
-          currentHistory,
-          importTraceRowsCommand(
-            editor.service.id,
-            editor.page.id,
-            editor.subpage.id,
-            trace.rows
-          )
-        )
-      );
-      setSelection(undefined);
-      setTraceStatus({
-        state: "done",
-        message: `Imported ${file.name} into editable rows.`,
-        confidence: trace.confidence,
-        warnings: trace.warnings
-      });
-      setSaveMessage(`Imported trace ${new Date().toLocaleTimeString()}`);
-    } catch (error) {
-      setTraceStatus({
-        state: "error",
-        message: error instanceof Error ? error.message : "Could not import screenshot.",
-        warnings: []
-      });
-    }
-  }
-
   async function suggestTraceGridFromEdges() {
     if (!traceReferenceImage) {
       return;
@@ -1136,6 +1694,7 @@ export function App() {
     }
 
     const file = traceReferenceImage.file;
+    setCarouselPlaying(false);
 
     setTraceStatus({
       state: "loading",
@@ -1146,8 +1705,23 @@ export function App() {
     try {
       const imageData = await imageDataFromFile(file);
       const traceGridBounds = traceGridBoundsFromAlignment(imageData, traceGridAlignment);
+      const hasCalibration =
+        traceGridCalibration.xAnchors.length > 0 || traceGridCalibration.yAnchors.length > 0;
+      const calibratedGrid = hasCalibration
+        ? createCalibratedTraceGrid(imageData, traceGridBounds, {
+          xAnchors: traceGridCalibration.xAnchors.map((anchor) => ({
+            lineIndex: anchor.lineIndex,
+            position: (imageData.width * anchor.percent) / 100
+          })),
+          yAnchors: traceGridCalibration.yAnchors.map((anchor) => ({
+            lineIndex: anchor.lineIndex,
+            position: (imageData.height * anchor.percent) / 100
+          }))
+        })
+        : undefined;
       const scan = scanTeletextScreenshot(imageData, {
         bounds: traceGridBounds,
+        grid: calibratedGrid,
         hints: traceCellHints
       });
       const suggestedCalibration = traceGridLineAnchorsFromEdges(
@@ -1163,7 +1737,8 @@ export function App() {
             editor.service.id,
             editor.page.id,
             editor.subpage.id,
-            scan.rows
+            scan.rows,
+            scan.g3LineCells
           )
         )
       );
@@ -1173,7 +1748,7 @@ export function App() {
       setTraceReferenceInteractionMode("tag-cells");
       setTraceStatus({
         state: "done",
-        message: `Scanned ${file.name} into editable rows with finite-template matching.`,
+        message: `Scanned ${file.name} into editable rows with image-only finite-template matching (no page dictionary).`,
         confidence: scan.confidence,
         warnings: scan.warnings
       });
@@ -1188,25 +1763,68 @@ export function App() {
   }
 
   function saveProject() {
-    window.localStorage.setItem(LOCAL_PROJECT_KEY, exportNativeProject(history.present));
-    setSaveMessage(`Saved locally ${new Date().toLocaleTimeString()}`);
+    const projectPersistence = persistProjectLocally(history.present);
+    const templatePersistence = persistTemplateLibrary(history.present);
+    setSaveMessage(projectPersistence.ok && templatePersistence.ok
+      ? `Saved locally ${new Date().toLocaleTimeString()}`
+      : browserStorageWarning("Kept the project", projectPersistence.bytes));
   }
 
   function saveTemplate() {
-    setHistory((currentHistory) => {
-      const nextHistory = commitEditorHistory(
-        currentHistory,
-        saveCurrentPageAsTemplateCommand(editor.service.id, editor.page.id)
+    const nextHistory = commitEditorHistory(
+      history,
+      saveCurrentPageAsTemplateCommand(editor.service.id, editor.page.id)
+    );
+    const savedTemplate = nextHistory.present.templates.at(-1);
+    setHistory(nextHistory);
+    const persistence = persistProjectLocally(nextHistory.present);
+    persistTemplateLibrary(nextHistory.present);
+    if (savedTemplate) {
+      downloadBinaryFile(
+        templateFilename(savedTemplate),
+        exportTemplatePackage(savedTemplate),
+        "application/zip"
       );
-      window.localStorage.setItem(LOCAL_PROJECT_KEY, exportNativeProject(nextHistory.present));
-      return nextHistory;
-    });
-    setSaveMessage(`Saved template locally ${new Date().toLocaleTimeString()}`);
+      setSaveMessage(persistence.ok
+        ? `Saved ${savedTemplate.name} locally and downloaded ${templateFilename(savedTemplate)}`
+        : `Downloaded ${templateFilename(savedTemplate)}. Browser autosave is full, so keep this disk copy.`);
+    } else {
+      setSaveMessage("Could not save template");
+    }
+  }
+
+  function exportTemplateToDisk(templateId: string) {
+    const template = editor.templates.find((item) => item.id === templateId);
+    if (!template) {
+      setSaveMessage("Could not find template to export");
+      return;
+    }
+    downloadBinaryFile(
+      templateFilename(template),
+      exportTemplatePackage(template),
+      "application/zip"
+    );
+    setSaveMessage(`Downloaded ${templateFilename(template)}`);
+  }
+
+  async function importTemplateFromDisk(file: File) {
+    try {
+      const template = importTemplatePackage(new Uint8Array(await file.arrayBuffer()));
+      const nextHistory = commitEditorHistory(history, upsertTemplateCommand(template));
+      setHistory(nextHistory);
+      const persistence = persistProjectLocally(nextHistory.present);
+      persistTemplateLibrary(nextHistory.present);
+      setSaveMessage(persistence.ok
+        ? `Imported ${template.name} from ${file.name}`
+        : browserStorageWarning(`Imported ${template.name}`, persistence.bytes));
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : "Could not import template package");
+    }
   }
 
   function downloadProject() {
     downloadTextFile(
-      "fortyforge-project.pttx.json",
+      "pixelcast-project.pixelcast.json",
       exportNativeProject(history.present),
       "application/json"
     );
@@ -1225,7 +1843,27 @@ export function App() {
     );
   }
 
-  const referenceVisible = traceReferenceImage !== undefined;
+  async function openProjectFile(file: File) {
+    try {
+      const text = await file.text();
+      const project = refreshBuiltInMastheadAlphabets(
+        mergeStoredTemplates(importNativeProject(text), text)
+      );
+      setHistory(createEditorHistory(project));
+      setActivePageId(project.services[0]?.pages[0]?.id);
+      setActiveSubpageId(project.services[0]?.pages[0]?.subpages[0]?.id);
+      setSelection(undefined);
+      const persistence = persistProjectLocally(project);
+      persistTemplateLibrary(project);
+      setSaveMessage(persistence.ok
+        ? `Opened ${file.name}`
+        : browserStorageWarning(`Opened ${file.name}`, persistence.bytes));
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : "Could not open project");
+    }
+  }
+
+  const referenceVisible = traceReferenceImage !== undefined && feedWorkspace === undefined;
   const referenceWorkbenchStyle = referenceVisible
     ? {
       "--reference-panel-width": `${traceReferencePanelWidth}px`
@@ -1236,18 +1874,39 @@ export function App() {
     <main className={`app-shell ${layoutMode === "playout" ? "playout-shell" : "studio-shell"}`}>
       <aside className="sidebar" aria-label="Service navigator">
         <div className="brand">
-          <span className="brand-mark">40</span>
+          <span className="brand-mark">PX</span>
           <div>
-            <h1>FortyForge</h1>
+            <h1>Pixelcast Studio</h1>
             <p>Teletext page editor</p>
           </div>
         </div>
 
         <PageNavigator
-          activeSubpageId={editor.subpage.id}
+          activePageId={editor.page.id}
+          activeGeneratedSubpageIndex={generatedPreviewIndex}
+          activeSubpageId={generatedPreview ? undefined : editor.subpage.id}
+          generatedSubpages={editor.page.contentBindings.length > 0
+            ? generatedPreviews.map(({ subcode }) => ({ subcode }))
+            : []}
+          onGeneratedSubpageSelect={(index) => {
+            setGeneratedPreviewIndex(index);
+            setCarouselPlaying(false);
+            setSelection(undefined);
+            setRectangleSelection(undefined);
+          }}
+          onPageAdd={commitPageAdd}
           onSubpageAdd={commitSubpageAdd}
-          onSubpageSelect={(subpageId) => {
+          onPageSelect={(pageId) => {
+            setActivePageId(pageId);
+            setActiveSubpageId(undefined);
+            setCarouselPlaying(false);
+            setSelection(undefined);
+          }}
+          onSubpageSelect={(pageId, subpageId) => {
+            setActivePageId(pageId);
             setActiveSubpageId(subpageId);
+            setGeneratedPreviewIndex(undefined);
+            setCarouselPlaying(false);
             setSelection(undefined);
           }}
           pages={editor.service.pages}
@@ -1257,16 +1916,34 @@ export function App() {
         <TemplateLibrary
           onTemplateApply={commitTemplate}
           onTemplateDelete={deleteTemplate}
+          onTemplateExport={exportTemplateToDisk}
+          onTemplateImport={(file) => {
+            void importTemplateFromDisk(file);
+          }}
+          onTemplateRegionAdd={addTemplateRegion}
+          rectangleSelection={rectangleSelection}
           templates={editor.templates}
+        />
+        <ContentSourcesPanel
+          snapshots={editor.project.contentSnapshots}
+          sources={editor.project.contentSources}
         />
       </aside>
 
       <section className="workspace" aria-label="Teletext workspace">
         <header className="toolbar">
           <div>
-            <p className="eyebrow">Level {editor.page.metadata.targetPresentationLevel} authoring</p>
-            <h2>Page {editor.page.pageNumber}</h2>
-            <p>Subpage {editor.subpage.subcode}</p>
+            <p className="eyebrow">
+              {feedWorkspace ? "Feed staging · literal teletext" : `Level ${editor.page.metadata.targetPresentationLevel} authoring`}
+            </p>
+            <h2>{feedWorkspace ? "Feed scratch canvas" : `Page ${editor.page.pageNumber}`}</h2>
+            <p>
+              {feedWorkspace
+                ? feedWorkspace.record
+                  ? `${feedWorkspace.sourceLabel} · record ${feedWorkspace.recordPosition}/${feedWorkspace.recordCount} · teletext ${feedWorkspace.pagePosition}/${feedWorkspace.pageCount}`
+                  : "Fetch and select a record in the Feeds tab"
+                : `Subpage ${generatedPreview?.subcode ?? editor.subpage.subcode}${generatedPreview ? ` · generated ${generatedPreviewIndex! + 1}/${generatedPreviews.length}` : ""}`}
+            </p>
           </div>
           <div className="toolbar-actions">
             <div className="segmented-control" aria-label="Layout mode">
@@ -1315,9 +1992,104 @@ export function App() {
             >
               Redo
             </button>
-            <button type="button">Preview Level 1</button>
-            <button onClick={saveTemplate} type="button">Save as template</button>
+            <button
+              disabled={Boolean(feedWorkspace)}
+              aria-pressed={generatedPreview !== undefined}
+              onClick={() => setGeneratedPreviewIndex((current) => current === undefined ? 0 : undefined)}
+              type="button"
+            >
+              {generatedPreview
+                ? "Edit template"
+                : editor.page.contentBindings.length > 0
+                  ? "Show live content"
+                  : "Preview generated"}
+            </button>
+            {generatedPreview && generatedPreviews.length > 1 ? (
+              <div className="segmented-control" aria-label="Live feed carousel playback">
+                <button
+                  aria-pressed={carouselPlaying}
+                  onClick={() => setCarouselPlaying((current) => !current)}
+                  type="button"
+                >
+                  {carouselPlaying ? "Pause live carousel" : "Play live carousel"}
+                </button>
+                <button
+                  disabled={generatedPreviewIndex === 0}
+                  onClick={() => {
+                    setGeneratedPreviewIndex((current) => Math.max(0, (current ?? 0) - 1));
+                    setCarouselPlaying(false);
+                  }}
+                  type="button"
+                >
+                  Previous
+                </button>
+                <button
+                  disabled={generatedPreviewIndex === generatedPreviews.length - 1}
+                  onClick={() => {
+                    setGeneratedPreviewIndex((current) => Math.min(generatedPreviews.length - 1, (current ?? 0) + 1));
+                    setCarouselPlaying(false);
+                  }}
+                  type="button"
+                >
+                  Next
+                </button>
+                <span>
+                  {(generatedPreviewIndex ?? 0) + 1}/{generatedPreviews.length} · {Math.max(2, editor.subpage.carousel.delaySeconds || 8)}s
+                </span>
+              </div>
+            ) : null}
+            {editor.page.subpages.length > 1 && !feedWorkspace && !generatedPreview ? (
+              <div className="segmented-control" aria-label="Story carousel playback">
+                {carouselSubpages.length > 1 ? (
+                  <button
+                    aria-pressed={carouselPlaying}
+                    onClick={() => setCarouselPlaying((current) => !current)}
+                    type="button"
+                  >
+                    {carouselPlaying ? "Pause carousel" : "Play carousel"}
+                  </button>
+                ) : null}
+                <span>
+                  {carouselSubpages.length > 1
+                    ? `${(carouselPosition >= 0 ? carouselPosition : 0) + 1}/${carouselSubpages.length} · ${editor.subpage.carousel.delaySeconds}s`
+                    : `${editor.page.subpages.length} static subpages`}
+                </span>
+                <button
+                  onClick={() => commitPageCarouselEnabled(carouselSubpages.length < 2)}
+                  type="button"
+                >
+                  {carouselSubpages.length > 1 ? "Disable carousel" : "Enable carousel"}
+                </button>
+              </div>
+            ) : null}
+            <button
+              aria-pressed={revealConcealed}
+              onClick={() => setRevealConcealed((current) => !current)}
+              type="button"
+            >
+              {revealConcealed ? "Hide concealed" : "Reveal concealed"}
+            </button>
+            <button
+              aria-pressed={animateFlash}
+              onClick={() => setAnimateFlash((current) => !current)}
+              type="button"
+            >
+              {animateFlash ? "Pause flash" : "Resume flash"}
+            </button>
+            <button onClick={saveTemplate} type="button">Save template to disk</button>
             <button onClick={saveProject} type="button">Save</button>
+            <label className="file-button">
+              Open project
+              <input
+                accept=".json,.pttx,.pixelcast.json"
+                aria-label="Open project file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void openProjectFile(file);
+                }}
+                type="file"
+              />
+            </label>
             <button onClick={downloadProject} type="button">Download project</button>
             <button onClick={downloadTti} type="button">Download TTI</button>
           </div>
@@ -1335,14 +2107,18 @@ export function App() {
         >
           <TeletextCanvas
             activeTool={activeTool}
+            animateFlash={animateFlash}
             blockPreview={blockClipboard && blockPreviewTarget
               ? { block: blockClipboard, target: blockPreviewTarget }
               : undefined}
             mosaicPaintMode={mosaicPaintMode}
+            enhancementPackets={feedWorkspace ? [] : previewSubpage.enhancementPackets}
+            linePaintMode={linePaintMode}
             onBlockPreviewTargetChange={setBlockPreviewTarget}
             onBlockStamp={commitBlockStamp}
             onCellSelect={setSelection}
             onCellDelete={commitCellDelete}
+            onG3LinePaint={commitG3LinePaint}
             onMosaicPresetPaint={commitMosaicPresetPaint}
             onMosaicSixelEdit={commitMosaicSixelEdit}
             onRectangleClear={clearBlockSelection}
@@ -1351,14 +2127,16 @@ export function App() {
             onRowClear={commitRowClear}
             onTextInput={commitText}
             onUndo={undoEdit}
-            previewProfileId={previewProfileId}
-            rectangleSelection={rectangleSelection}
-            receiverFontProfileId={editor.page.metadata.receiverFontProfileId}
-            rows={displayRows}
-            selection={selection}
+            previewProfileId={feedWorkspace ? "pit-strict" : previewProfileId}
+            readOnly={Boolean(feedWorkspace)}
+            rectangleSelection={feedWorkspace?.bounds ?? rectangleSelection}
+            receiverFontProfileId={receiverFontProfileId}
+            revealConcealed={revealConcealed}
+            rows={feedWorkspace?.rows ?? displayRows}
+            selection={feedWorkspace ? undefined : selection}
           />
 
-          {traceReferenceImage ? (
+          {traceReferenceImage && !feedWorkspace ? (
             <>
               <button
                 aria-label="Resize reference panel"
@@ -1385,6 +2163,7 @@ export function App() {
                 interactionMode={traceReferenceInteractionMode}
                 name={traceReferenceImage.name}
                 onCellSelect={selectTraceReferenceCell}
+                onClose={closeTraceReference}
                 onGridLineDrag={dragTraceGridLine}
                 onGridVisibleChange={setTraceReferenceGridVisible}
                 onInteractionModeChange={setTraceReferenceInteractionMode}
@@ -1402,10 +2181,25 @@ export function App() {
           <p className="playout-note">Clean output mode for a second display or live monitor.</p>
         ) : null}
 
-        <ValidationPanel
-          issues={editor.validationIssues}
-          packetPreview={editor.packetPreview}
-        />
+        {feedWorkspace ? (
+          <section className="feed-preview-summary" aria-label="Feed fit summary">
+            <strong>{feedWorkspace.usedRows}/{feedWorkspace.capacityRows} slot rows used</strong>
+            <span>{feedWorkspace.pageCount} teletext {feedWorkspace.pageCount === 1 ? "page" : "subpages"}</span>
+            {feedWorkspace.protectedThroughRow !== undefined ? (
+              <span>Mosaic heading protected through row {feedWorkspace.protectedThroughRow}</span>
+            ) : null}
+            <span>
+              {feedWorkspace.unsupportedCharacterCount === 0
+                ? "Level 1 character set clean"
+                : `${feedWorkspace.unsupportedCharacterCount} unsupported characters replaced with ?`}
+            </span>
+          </section>
+        ) : (
+          <ValidationPanel
+            issues={editor.validationIssues}
+            packetPreview={editor.packetPreview}
+          />
+        )}
         <p className="save-status" role="status">{saveMessage}</p>
       </section>
 
@@ -1413,9 +2207,15 @@ export function App() {
         activeTool={activeTool}
         artworkBlocks={editor.project.artworkBlocks}
         blockClipboard={blockClipboard}
+        carouselPlaying={carouselPlaying}
         disabled={!selection}
         mosaicPaintMode={mosaicPaintMode}
+        linePaintMode={linePaintMode}
         page={editor.page}
+        pages={editor.service.pages}
+        contentSources={editor.project.contentSources}
+        contentSnapshots={editor.project.contentSnapshots}
+        receiverFontProfileId={receiverFontProfileId}
         rectangleSelection={rectangleSelection}
         subpage={editor.subpage}
         templates={editor.templates}
@@ -1431,13 +2231,19 @@ export function App() {
         onBlockStamp={() => commitBlockStamp()}
         onControlSelect={commitControlCode}
         onHeaderClockModeChange={commitHeaderClockMode}
+        onFeedWorkspaceChange={setFeedWorkspace}
+        onFeedSourceSave={saveFeedSource}
+        onFeedSourceSnapshotSave={saveFeedSourceSnapshot}
+        onFeedTargetPageSelect={selectFeedTargetPage}
+        onFeedBindingRemove={removeFeedBinding}
+        onCarouselPlayingChange={setCarouselPlaying}
+        onFeedPlaceSnapshot={placeFeedSnapshot}
+        onFeedBindToSlot={bindFeedToSlot}
         onMosaicPaint={commitMosaicPaint}
         onMosaicPaintModeChange={setMosaicPaintMode}
+        onLinePaintModeChange={setLinePaintMode}
         onMosaicTextStamp={commitMosaicTextStamp}
         onReceiverFontProfileChange={commitReceiverFontProfile}
-        onTraceAutoImport={() => {
-          void importTraceReference();
-        }}
         onTraceCalibrationPositionChange={setTraceCalibrationPosition}
         onTraceGridSuggestFromEdges={() => {
           void suggestTraceGridFromEdges();

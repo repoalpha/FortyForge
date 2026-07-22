@@ -2,7 +2,7 @@
 
 Source baseline: ETSI EN 300 706 V1.2.1, Enhanced Teletext specification.
 
-## Current FortyForge Coverage
+## Current Pixelcast Studio Coverage
 
 Implemented or partially implemented:
 
@@ -37,7 +37,7 @@ Still missing:
 
 ### Packet And Header Gaps
 
-ETSI defines X/0 as page address, control bits, and 32 display bytes. FortyForge models the display row and header policy, but does not yet encode the full Hamming-protected X/0 packet fields.
+ETSI defines X/0 as page address, control bits, and 32 display bytes. Pixelcast Studio models the display row and header policy, but does not yet encode the full Hamming-protected X/0 packet fields.
 
 Missing:
 
@@ -71,12 +71,12 @@ Missing:
 
 ## PIT/PTI Reference Requirement
 
-The PIT/pi-teletext checkout is available in WSL2 at `/home/nzste/projects/pi-teletext` with remote `https://github.com/repoalpha/pi-teletext.git`. This gives FortyForge a local source and test reference for renderer behaviour, though a running PIT/RPI target is still needed for live playout round trips.
+The PIT/pi-teletext checkout is available in WSL2 at `/home/nzste/projects/pi-teletext` with remote `https://github.com/repoalpha/pi-teletext.git`. This gives Pixelcast Studio a local source and test reference for renderer behaviour, though a running PIT/RPI target is still needed for live playout round trips.
 
 PIT findings to fold into the gap list:
 
-- Strict PIT rendering is documented around a canonical `480x500` framebuffer. FortyForge's current `640x500` Studio preview should become a selectable editor profile alongside a strict PIT comparison profile.
-- PIT generates `12x20` SAA5050 glyphs from Mullard ROM data with margin and half-dot rounding behaviour. FortyForge's current SAA5050 bitmap path is close in spirit but still needs pixel comparison.
+- Strict PIT rendering is documented around a canonical `480x500` framebuffer. Pixelcast Studio's current `640x500` Studio preview should become a selectable editor profile alongside a strict PIT comparison profile.
+- PIT generates `12x20` SAA5050 glyphs from Mullard ROM data with margin and half-dot rounding behaviour. Pixelcast Studio's current SAA5050 bitmap path is close in spirit but still needs pixel comparison.
 - PIT implements hold graphics, separated/contiguous mosaics, background state, and double-height top/bottom row handling in its core renderer/cell pipeline.
 
 Compare next:

@@ -1,6 +1,10 @@
 export type PresentationLevel = "1" | "1.5" | "2.5" | "3.5";
 
-export type TeletextFontProfileId = "saa5050-classic" | "bedstead-extended" | "tdatext-later";
+export type TeletextFontProfileId =
+  | "ets-1990s"
+  | "saa5050-classic"
+  | "bedstead-extended"
+  | "tdatext-later";
 
 export type CellKind = "empty" | "character" | "control" | "mosaic" | "drcs";
 
@@ -37,7 +41,7 @@ export interface ProjectMetadata {
 }
 
 export interface Project {
-  schemaVersion: "1.0.0";
+  schemaVersion: "2.0.0";
   appVersion: string;
   metadata: ProjectMetadata;
   services: Service[];
@@ -59,6 +63,25 @@ export interface Service {
   pages: Page[];
   navigation: ServiceNavigation;
   settings: ServiceSettings;
+  schedule: ServiceSchedule;
+}
+
+export interface ServiceSchedule {
+  enabled: boolean;
+  defaultDwellSeconds: number;
+  entries: ServiceScheduleEntry[];
+  emergencyPageId?: string;
+}
+
+export interface ServiceScheduleEntry {
+  pageId: string;
+  subpageId?: string;
+  enabled: boolean;
+  dwellSeconds: number;
+  repeatWeight: number;
+  priority: "normal" | "high" | "emergency";
+  validFrom?: string;
+  validUntil?: string;
 }
 
 export interface TeletextLanguage {
@@ -298,6 +321,50 @@ export interface Template {
   targetPresentationLevel: PresentationLevel;
   rows: TeletextRow[];
   regions: TemplateRegion[];
+  templateVersion: string;
+  requiredPixelcastVersion: string;
+  blocks: TemplateBlock[];
+  fixtures: TemplateFixture[];
+  styleKit?: StyleKit;
+}
+
+export type TemplateBlockKind =
+  | "masthead"
+  | "header"
+  | "navigation-footer"
+  | "text"
+  | "headline-list"
+  | "story"
+  | "key-value-table"
+  | "schedule"
+  | "weather"
+  | "ticker"
+  | "attribution"
+  | "artwork"
+  | "spacer";
+
+export interface TemplateBlock {
+  id: string;
+  kind: TemplateBlockKind;
+  regionId: string;
+  label: string;
+  settings: Record<string, string | number | boolean>;
+}
+
+export interface TemplateFixture {
+  id: string;
+  label: string;
+  kind: "sample" | "long" | "missing" | "stale";
+  records: NormalizedContentRecord[];
+}
+
+export interface StyleKit {
+  id: string;
+  name: string;
+  permittedLevel1Colours: number[];
+  mastheadAlphabetId?: string;
+  dividerByte?: number;
+  footerTemplate?: string;
 }
 
 export type TemplateCategory =
@@ -305,6 +372,10 @@ export type TemplateCategory =
   | "index"
   | "article"
   | "weather"
+  | "finance"
+  | "schedule"
+  | "advert"
+  | "presentation"
   | "status"
   | "ticker"
   | "art"
@@ -319,6 +390,10 @@ export interface TemplateRegion {
   lockedControlCodes: boolean;
   overflowPolicy: OverflowPolicy;
   fallbackText: string;
+  blockKind: TemplateBlockKind;
+  characterPolicy: "level1-replace" | "level1-reject";
+  attributionRequired: boolean;
+  writableColumns?: number[];
 }
 
 export interface RegionBounds {
@@ -347,6 +422,20 @@ export interface ContentSource {
   refreshPolicy: RefreshPolicy;
   cachePolicy: CachePolicy;
   fieldHints: Record<string, string>;
+  provider: string;
+  policy: SourcePolicy;
+  credentialEnvironmentVariable?: string;
+}
+
+export interface SourcePolicy {
+  licenceMode: "open" | "operator-licensed" | "internal";
+  termsUrl: string;
+  permittedUse: "non-commercial" | "commercial" | "internal";
+  attributionRequired: boolean;
+  attributionText: string;
+  reviewedAt: string;
+  expiresAt?: string;
+  operatorApproved: boolean;
 }
 
 export interface ContentBinding {
@@ -357,6 +446,14 @@ export interface ContentBinding {
   targetSubpageId?: string;
   transform: ContentTransform;
   ticker?: TickerSettings;
+  policy: BindingPolicy;
+}
+
+export interface BindingPolicy {
+  approval: "automatic" | "manual";
+  staleAfterSeconds?: number;
+  allowStale: boolean;
+  onFailure: "keep-last-valid" | "use-fallback" | "reject-publication";
 }
 
 export interface ContentTransform {
@@ -366,6 +463,7 @@ export interface ContentTransform {
   textCase: "preserve" | "upper" | "teletext-title";
   controlStyle: "plain" | "headline-colour" | "region-default";
   overflowPolicy: OverflowPolicy;
+  attributionGapRows?: number;
 }
 
 export interface ContentFieldMapping {
@@ -410,6 +508,9 @@ export interface ContentSnapshot {
   status: "ok" | "stale" | "error";
   records: NormalizedContentRecord[];
   errorMessage?: string;
+  attributionText?: string;
+  sourceUri?: string;
+  generatedPageHashes?: Record<string, string>;
 }
 
 export interface NormalizedContentRecord {
@@ -424,6 +525,37 @@ export interface NormalizedContentRecord {
   fields: Record<string, string | number | boolean | null>;
 }
 
+export interface TemplateCompileDiagnostic {
+  severity: "info" | "warning" | "error";
+  code: string;
+  message: string;
+  pageId: string;
+  regionId?: string;
+  sourceId?: string;
+}
+
+export interface CompiledPageSnapshot {
+  pageId: string;
+  pageNumber: string;
+  subpageId: string;
+  subcode: string;
+  rows: TeletextRow[];
+  enhancementPackets: EnhancementPacket[];
+  sourceTimestamps: Record<string, string>;
+  attributions: string[];
+  diagnostics: TemplateCompileDiagnostic[];
+}
+
+export interface TemplatePackageManifest {
+  format: "pixelcast-template";
+  formatVersion: "1";
+  templateId: string;
+  templateVersion: string;
+  requiredPixelcastVersion: string;
+  createdAt: string;
+  contentHash: string;
+}
+
 export interface ExportProfile {
   id: string;
   name: string;
@@ -431,7 +563,7 @@ export interface ExportProfile {
   presentationLevel: PresentationLevel;
 }
 
-export type ExportTargetFormat = "pttx" | "tti" | "t42" | "raw" | "png" | "gif";
+export type ExportTargetFormat = "pixelcast" | "pttx" | "tti" | "t42" | "raw" | "png" | "gif";
 
 export interface TransmissionProfile {
   id: string;

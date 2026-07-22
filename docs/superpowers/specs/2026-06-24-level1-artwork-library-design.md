@@ -2,9 +2,9 @@
 
 ## Purpose
 
-FortyForge needs a way to turn corrected imported teletext artwork into reusable assets. The first target is masthead graphics, logos, dividers, and other pixel art made from normal Level 1 teletext cells. The first implementation should let an author capture a rectangular block from the current page, save it to a local artwork library, and stamp it back onto any editable page.
+Pixelcast Studio needs a way to turn corrected imported teletext artwork into reusable assets. The first target is masthead graphics, logos, dividers, and other pixel art made from normal Level 1 teletext cells. The first implementation should let an author capture a rectangular block from the current page, save it to a local artwork library, and stamp it back onto any editable page.
 
-This is the foundation for later style alphabets such as a CEEFAX-style masthead font where the author can type `HAMFAX` or `STEVEFAX` and have FortyForge lay down matching mosaic letters.
+This is the foundation for later style alphabets such as a CEEFAX-style masthead font where the author can type `HAMFAX` or `STEVEFAX` and have Pixelcast Studio lay down matching mosaic letters.
 
 ## Scope
 
@@ -43,7 +43,7 @@ interface ArtworkBlock {
 }
 ```
 
-The cells are stored as FortyForge cell data, not images. A captured CEEFAX masthead fragment is therefore a real teletext patch made of character, mosaic, control, and empty cells with any supported cell background metadata.
+The cells are stored as Pixelcast Studio cell data, not images. A captured CEEFAX masthead fragment is therefore a real teletext patch made of character, mosaic, control, and empty cells with any supported cell background metadata.
 
 The initial schema can store `artworkBlocks?: ArtworkBlock[]` so older project files load safely. Native project import should default missing libraries to an empty array.
 
@@ -56,7 +56,7 @@ Add a rectangle selection mode to the canvas:
 3. The selected rectangle is visibly outlined on the canvas.
 4. The right dock offers `Save as artwork block`.
 5. The author gives the block a name and category.
-6. FortyForge copies the selected cells into `project.artworkBlocks`.
+6. Pixelcast Studio copies the selected cells into `project.artworkBlocks`.
 
 The rectangle selection should work on existing traced/imported pages, hand-edited pages, and normal templates.
 
@@ -67,7 +67,7 @@ Add an Artwork Library section in the right dock:
 1. The author selects an artwork block.
 2. The block preview shows a small teletext-native thumbnail.
 3. The author clicks a target cell on the page.
-4. FortyForge stamps the block into the current subpage starting at that cell.
+4. Pixelcast Studio stamps the block into the current subpage starting at that cell.
 5. Stamps that would run outside the 40 by 25 grid are refused with a clear warning.
 
 Stamping should be an editor command so it participates in undo and redo. It should replace cells in the target rectangle exactly, including mosaics, text, control codes, and backgrounds.
@@ -76,7 +76,7 @@ Stamping should be an editor command so it participates in undo and redo. It sho
 
 The artwork library must not store arbitrary bitmap pixels in version 1. Every block must be reconstructible as normal Level 1 page cells. This keeps the asset library compatible with:
 
-- FortyForge editing.
+- Pixelcast Studio editing.
 - Native project JSON export/import.
 - TTI export.
 - PIT playout.

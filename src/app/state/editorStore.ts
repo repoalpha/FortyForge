@@ -56,10 +56,11 @@ export function redoEditorHistory(history: EditorHistory): EditorHistory {
 
 export function createEditorViewModel(
   project = createDefaultProject(),
+  activePageId?: string,
   activeSubpageId?: string
 ): EditorViewModel {
   const service = project.services[0];
-  const page = service.pages[0];
+  const page = service.pages.find((item) => item.id === activePageId) ?? service.pages[0];
   const subpage = page.subpages.find((item) => item.id === activeSubpageId) ?? page.subpages[0];
 
   return {

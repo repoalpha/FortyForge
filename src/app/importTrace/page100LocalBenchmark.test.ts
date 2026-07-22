@@ -15,7 +15,8 @@ interface TraceFixture {
   data: number[];
 }
 
-const fixturePath = process.env?.FORTYFORGE_TRACE_FIXTURE;
+const fixturePath = process.env?.PIXELCAST_TRACE_FIXTURE
+  ?? process.env?.FORTYFORGE_TRACE_FIXTURE;
 const maybeDescribe = fixturePath ? describe : describe.skip;
 
 async function loadFixture(path: string): Promise<TraceImageData> {

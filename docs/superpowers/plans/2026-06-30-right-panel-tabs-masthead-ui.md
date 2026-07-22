@@ -6,7 +6,7 @@
 
 **Architecture:** Keep `ToolDock` as the right-side inspector but add local tab state to choose which group is visible. Preserve the existing mosaic paint and masthead stamping callbacks so renderer/model behaviour does not change.
 
-**Tech Stack:** React, TypeScript, Vitest, Testing Library, existing FortyForge component CSS.
+**Tech Stack:** React, TypeScript, Vitest, Testing Library, existing Pixelcast Studio component CSS.
 
 ---
 

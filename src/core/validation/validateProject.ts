@@ -1,5 +1,6 @@
 import type { Project } from "../model/types";
 import { parsePageAddress } from "../standards/pageAddress";
+import { getBuiltInTemplate } from "../templates/builtInTemplates";
 import type { ValidationIssue, ValidationLocation, ValidationScope } from "./types";
 
 const EXPECTED_ROW_COUNT = 25;
@@ -32,6 +33,9 @@ export function validateProject(project: Project): ValidationIssue[] {
     for (const page of service.pages) {
       const pageLocation = { serviceId: service.id, pageId: page.id };
       const parsedAddress = parsePageAddress(page.pageNumber);
+      const template = page.metadata.templateId
+        ? project.templates.find((item) => item.id === page.metadata.templateId) ?? getBuiltInTemplate(page.metadata.templateId)
+        : undefined;
 
       if (!parsedAddress) {
         issues.push(
@@ -112,6 +116,46 @@ export function validateProject(project: Project): ValidationIssue[] {
           }
         }
       }
+
+      for (const binding of page.contentBindings) {
+        if (!project.contentSources.some((source) => source.id === binding.sourceId)) {
+          issues.push(issue("binding-source", "page", `Binding ${binding.id} refers to a missing content source.`, "Choose an existing source or remove the binding.", pageLocation));
+        }
+        if (!template?.regions.some((region) => region.id === binding.templateRegionId)) {
+          issues.push(issue("binding-region", "page", `Binding ${binding.id} refers to a missing template slot.`, "Choose an existing slot or reapply the template.", pageLocation));
+        }
+      }
+    }
+
+    for (const entry of service.schedule.entries) {
+      if (!service.pages.some((page) => page.id === entry.pageId)) {
+        issues.push(issue("schedule-page", "service", `Schedule refers to missing page ${entry.pageId}.`, "Remove the schedule entry or restore the page.", { serviceId: service.id }));
+      }
+    }
+  }
+
+  for (const template of project.templates) {
+    for (const region of template.regions) {
+      if (region.bounds.startRow > region.bounds.endRow || region.bounds.startColumn > region.bounds.endColumn) {
+        issues.push(issue("template-region-bounds", "project", `Template slot ${region.label} has inverted bounds.`, "Select a valid rectangle from top-left to bottom-right."));
+      }
+    }
+    for (const block of template.blocks) {
+      if (!template.regions.some((region) => region.id === block.regionId)) {
+        issues.push(issue("template-block-region", "project", `Template block ${block.label} has no matching slot.`, "Attach the block to an existing template slot."));
+      }
+    }
+  }
+
+  for (const source of project.contentSources) {
+    if (source.enabled && !source.policy.operatorApproved) {
+      issues.push(issue("source-rights", "project", `Content source ${source.label} has not been approved for publication.`, "Review its terms and record operator approval."));
+    }
+    if (source.enabled && source.policy.attributionRequired && !source.policy.attributionText.trim()) {
+      issues.push(issue("source-attribution", "project", `Content source ${source.label} requires attribution but has none.`, "Add the exact on-air attribution text."));
+    }
+    if (source.kind === "web-extract" && source.enabled) {
+      issues.push(issue("web-extract-disabled", "project", `Content source ${source.label} uses unsupported web extraction.`, "Use RSS, Atom, JSON, CSV, text, weather, or manual content for the POC."));
     }
   }
 

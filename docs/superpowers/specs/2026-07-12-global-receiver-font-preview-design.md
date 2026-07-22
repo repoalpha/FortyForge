@@ -2,20 +2,20 @@
 
 ## Goal
 
-FortyForge must let an author switch the entire application preview between deterministic receiver font profiles to judge the visual character of a service. The selection is a design-time viewing preference, not teletext page data, and must remain selected after a browser refresh until the author deliberately changes it.
+Pixelcast Studio must let an author switch the entire application preview between deterministic receiver font profiles to judge the visual character of a service. The selection is a design-time viewing preference, not teletext page data, and must remain selected after a browser refresh until the author deliberately changes it.
 
 ## Scope
 
-This change covers the FortyForge preview preference, selector presentation, canvas rendering, persistence, and tests. It does not add a font-selection code to TTI, packet streams, or other teletext exports, and it does not change the pi-teletext runtime.
+This change covers the Pixelcast Studio preview preference, selector presentation, canvas rendering, persistence, and tests. It does not add a font-selection code to TTI, packet streams, or other teletext exports, and it does not change the pi-teletext runtime.
 
 ## Teletext Boundary
 
-Level 1 teletext transmits character and control bytes, not the receiver's character-generator design. Historical receivers rendered the same bytes differently according to their hardware. FortyForge will model that distinction explicitly:
+Level 1 teletext transmits character and control bytes, not the receiver's character-generator design. Historical receivers rendered the same bytes differently according to their hardware. Pixelcast Studio will model that distinction explicitly:
 
 - Page bytes and export formats remain independent of receiver font choice.
-- FortyForge applies one global receiver font profile to every page preview.
+- Pixelcast Studio applies one global receiver font profile to every page preview.
 - pi-teletext may later expose the same stable profile IDs as runtime configuration, but a deployed device will normally be configured to use one renderer profile.
-- FortyForge and pi-teletext do not share packages or source files. Stable profile IDs and independently maintained deterministic glyph tables are their interoperability contract.
+- Pixelcast Studio and pi-teletext do not share packages or source files. Stable profile IDs and independently maintained deterministic glyph tables are their interoperability contract.
 
 ## Profiles
 
@@ -35,7 +35,7 @@ The active receiver font becomes application preview state rather than page meta
 - Default to `saa5050-classic` when the key is missing or invalid.
 - Write the key only when the author deliberately changes the receiver-font control.
 - Apply the active profile to every current and subsequently opened page.
-- Refreshing or reopening FortyForge restores the preference.
+- Refreshing or reopening Pixelcast Studio restores the preference.
 - Native project import/export and teletext exports do not carry or modify this preference.
 
 Existing page-level `receiverFontProfileId` data is no longer authoritative. Native project import will continue accepting it to avoid breaking saved projects, but rendering and new project creation will not depend on it. The obsolete field will remain ignored in this change and can be removed in a separate project-schema cleanup.
@@ -46,7 +46,7 @@ The receiver-font control remains in the Tools pane but represents a global prev
 
 - Label the control `Receiver font`.
 - Add concise supporting text explaining that it changes all previews and does not alter transmitted page bytes.
-- Style the control to match FortyForge: rounded border, dark surface, clear hover/focus states, comfortable spacing, and a deliberate dropdown indicator.
+- Style the control to match Pixelcast Studio: rounded border, dark surface, clear hover/focus states, comfortable spacing, and a deliberate dropdown indicator.
 - Do not build a custom menu when a styled native select provides the required keyboard and accessibility behavior.
 - Switching options must redraw the canvas immediately without requiring Save, page navigation, refresh, or server restart.
 

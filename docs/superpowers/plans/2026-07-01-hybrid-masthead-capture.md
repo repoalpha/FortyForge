@@ -6,7 +6,7 @@
 
 **Architecture:** Add a small core cell-block model and command surface, persist saved artwork blocks at project level, then layer rectangular selection and clipboard state into the React app. The canvas remains renderer-driven; selection and stamp previews are overlays, not renderer output.
 
-**Tech Stack:** TypeScript, React, Vitest, Testing Library, existing FortyForge command/history model.
+**Tech Stack:** TypeScript, React, Vitest, Testing Library, existing Pixelcast Studio command/history model.
 
 ---
 

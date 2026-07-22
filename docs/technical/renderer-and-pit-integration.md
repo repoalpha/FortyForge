@@ -1,8 +1,8 @@
-# FortyForge Renderer And PIT Integration
+# Pixelcast Studio Renderer And PIT Integration
 
 ## Decision
 
-FortyForge must not rely on HTML and CSS layout for the teletext display. The editor UI can use React for tools, panels, inspectors, templates, and workflow controls, but the page preview must be an embedded framebuffer-style render target. The render target starts as a TypeScript canvas renderer and is intentionally shaped so it can later be replaced by the real PIT renderer through WebAssembly or Tauri native commands.
+Pixelcast Studio must not rely on HTML and CSS layout for the teletext display. The editor UI can use React for tools, panels, inspectors, templates, and workflow controls, but the page preview must be an embedded framebuffer-style render target. The render target starts as a TypeScript canvas renderer and is intentionally shaped so it can later be replaced by the real PIT renderer through WebAssembly or Tauri native commands.
 
 ## Layout Modes
 
@@ -24,7 +24,7 @@ Mosaic editing is a first-class tool mode. In Mosaic mode the framebuffer cell i
 
 ## X/0 Header Policy
 
-Packet X/0 is a special page header row, not merely row zero artwork. It identifies the page, terminates the previous page in the stream, carries control/address metadata in the packet form, and normally contributes the visible top-row header text. FortyForge stores row 0 as editable/importable bytes, but also stores a page header policy:
+Packet X/0 is a special page header row, not merely row zero artwork. It identifies the page, terminates the previous page in the stream, carries control/address metadata in the packet form, and normally contributes the visible top-row header text. Pixelcast Studio stores row 0 as editable/importable bytes, but also stores a page header policy:
 
 - `original`: preserve and export the authored/imported row 0 bytes exactly as the source page supplied them.
 - `local`: compose row 0 at render/export time from page metadata and the local machine clock, using the normal `HH:MM/SS` X/0 clock slot in columns 33 to 40, so a Raspberry Pi or other runtime can keep the displayed clock current without resending a whole page from the editor.
@@ -56,11 +56,11 @@ Initial TypeScript implementation:
 - Draws selection as an overlay, not as document layout.
 - Keeps DOM grid semantics available for accessibility and tests until a richer canvas accessibility layer exists.
 
-The bundled TypeScript SAA5050 table gives crisp non-antialiased pixels and removes dependence on HTML/CSS text rendering. It is adapted from the MIT-licensed `textmodes/font` Mullard SAA5050 data. FortyForge now mirrors PIT's glyph expansion logic in TypeScript; the next renderer milestone is automated image comparison against PIT output so FortyForge can catch row/column differences.
+The bundled TypeScript SAA5050 table gives crisp non-antialiased pixels and removes dependence on HTML/CSS text rendering. It is adapted from the MIT-licensed `textmodes/font` Mullard SAA5050 data. Pixelcast Studio now mirrors PIT's glyph expansion logic in TypeScript; the next renderer milestone is automated image comparison against PIT output so Pixelcast Studio can catch row/column differences.
 
 Lowercase entry is supported by the SAA5050 glyph table and the text tool now preserves typed case. The previous keyboard path uppercased every printable key before committing it to the page model, which made lowercase glyphs unreachable even though the renderer could draw them.
 
-The local PIT checkout is available in WSL2 at `/home/nzste/projects/pi-teletext` with remote `https://github.com/repoalpha/pi-teletext.git`. Its strict renderer profile uses a canonical `480x500` framebuffer, so FortyForge's `640x500` Studio preview is an editor readability profile rather than exact playout parity. The preview control now exposes both:
+The local PIT checkout is available in WSL2 at `/home/nzste/projects/pi-teletext` with remote `https://github.com/repoalpha/pi-teletext.git`. Its strict renderer profile uses a canonical `480x500` framebuffer, so Pixelcast Studio's `640x500` Studio preview is an editor readability profile rather than exact playout parity. The preview control now exposes both:
 
 - `PIT strict`: `480x500`, matching the runtime framebuffer for pixel comparison.
 - `Studio large`: wider editor pixels for comfortable laptop editing.
@@ -100,9 +100,9 @@ Key files:
 - `src/core/src/mosaic.cpp`: sixel mosaic rasterisation, including separated mosaic inset handling.
 - `src/core/src/cell.cpp`: Level 1 control-state interpretation, graphics mode, held graphics, and mosaic byte decoding.
 - `src/compiler/src/page_compiler.cpp`: generated row helpers and practical examples of graphics/background control placement.
-- `tests/test_framebuffer.cpp`, `tests/test_glyph.cpp`, `tests/test_mosaic.cpp`, `tests/test_teletext_state.cpp`: best starting point for parity-driven FortyForge tests.
+- `tests/test_framebuffer.cpp`, `tests/test_glyph.cpp`, `tests/test_mosaic.cpp`, `tests/test_teletext_state.cpp`: best starting point for parity-driven Pixelcast Studio tests.
 
-Practical implications for FortyForge:
+Practical implications for Pixelcast Studio:
 
 - Current text rendering is no longer browser-font or centered `6x10` output. It follows PIT's `12x20` Mullard expansion and half-dot corner shaping.
 - The apparent wider letter spacing in `Studio large` comes from the editor profile's `16x20` cells. PIT strict output should be judged in the `480x500` `PIT strict` mode, where the cell advance is the PIT/SAA-shaped `12x20` advance.
@@ -113,7 +113,7 @@ Practical implications for FortyForge:
 
 ## Screenshot Reference Trace
 
-FortyForge now treats screenshot tracing as a manual-first reference workflow. Clean screenshots can be loaded beside the editor canvas so an author can copy the page by hand with the normal text, mosaic, and control-code tools. This is the primary workflow until automatic reconstruction is consistently useful.
+Pixelcast Studio now treats screenshot tracing as a manual-first reference workflow. Clean screenshots can be loaded beside the editor canvas so an author can copy the page by hand with the normal text, mosaic, and control-code tools. This is the primary workflow until automatic reconstruction is consistently useful.
 
 The deterministic decoder still exists as an optional assist for clean framebuffer-like screenshots. It is intentionally scoped away from photos, perspective captures, noisy video frames, or arbitrary web images.
 
@@ -129,18 +129,18 @@ The first implementation lives in `src/app/importTrace/screenshotTrace.ts` and:
 - Reconstructs editable `TeletextRow[]` output, inserting row-local foreground/mode control bytes when preceding blank cells are available.
 - Preserves uncertain cells as editable blanks with `Trace confidence` annotations and reports warnings in the Import Trace dock.
 
-The right tool dock now has an `Import Trace` mode with a reference screenshot file input. Loading a file creates a side-by-side reference panel in the main workspace with fit/zoom controls, a draggable split handle, and a 40 by 25 overlay grid. The reference stays visible when authors switch back to Text or Mosaic mode so it can be copied by hand. The import dock exposes manual edge-inset controls for the overlay grid; these insets are converted into the decoder's grid rectangle before `Try auto trace` runs. The current editor page is left untouched until that button is pressed. Pressing `Try auto trace` explicitly runs the decoder: the browser decodes the stored reference file into canvas `ImageData`, the trace pipeline reconstructs rows, and FortyForge replaces the current subpage through the same editor history path as other commands. The imported result is editable, undoable, and exportable as native project JSON or TTI.
+The right tool dock now has an `Import Trace` mode with a reference screenshot file input. Loading a file creates a side-by-side reference panel in the main workspace with fit/zoom controls, a draggable split handle, and a 40 by 25 overlay grid. The reference stays visible when authors switch back to Text or Mosaic mode so it can be copied by hand. The import dock exposes manual edge-inset controls for the overlay grid; these insets are passed to the maintained scanner when `Scan screenshot` runs. The current editor page is left untouched until that button is pressed. Scanning decodes the stored reference file into canvas `ImageData`, reconstructs rows with the receiver-aware image scanner, and replaces the current subpage through the same editor history path as other commands. The imported result is editable, undoable, and exportable as native project JSON or TTI. The older `Try auto trace` workflow and its separate legacy decoder entry point have been removed.
 
 Known limits for this first slice:
 
-- Manual crop/alignment is still basic: authors set percentage edge insets rather than dragging grid anchors on the image. A future refinement should allow clicking a few known grid intersections and repeating the spacing across the page.
+- Grid alignment supports percentage edge insets, edge-based suggestions, and pinned or draggable non-uniform row/column anchors. Explicit calibration is passed into `Scan screenshot`; otherwise the scanner detects its grid from the selected bounds.
 - Control-code minimisation is conservative. It uses previous blank cells to preserve visible cell positions when inserting colour or graphics controls.
 - Hold graphics, separated mosaics, and all X/0 header policy details are not fully inferred from screenshots yet.
 - AI-assisted correction is deliberately out of scope until deterministic confidence reporting is useful.
 
 ## RPI/PIT Sync
 
-FortyForge should update a Raspberry Pi or similar target without recompiling PIT. The editor should publish data, not code:
+Pixelcast Studio should update a Raspberry Pi or similar target without recompiling PIT. The editor should publish data, not code:
 
 - Export TTI/T42/raw packet files into a watched folder.
 - Download native project JSON and TTI snapshots directly from the editor for manual VBIT/PIT workflows.

@@ -33,6 +33,7 @@ interface ReferenceImagePanelProps {
   url: string;
   zoom: ReferenceZoom;
   onCellSelect?: (selection: CellSelection) => void;
+  onClose: () => void;
   onGridLineDrag?: (axis: "x" | "y", lineIndex: number, percent: number) => void;
   onGridVisibleChange: (visible: boolean) => void;
   onInteractionModeChange: (mode: ReferenceInteractionMode) => void;
@@ -92,6 +93,7 @@ export function ReferenceImagePanel({
   url,
   zoom,
   onCellSelect,
+  onClose,
   onGridLineDrag,
   onGridVisibleChange,
   onInteractionModeChange,
@@ -191,13 +193,18 @@ export function ReferenceImagePanel({
           <h2>Reference</h2>
           <p className="section-note">{name}</p>
         </div>
-        <button
-          aria-pressed={gridVisible}
-          onClick={() => onGridVisibleChange(!gridVisible)}
-          type="button"
-        >
-          {gridVisible ? "Hide grid" : "Show grid"}
-        </button>
+        <div className="reference-panel-actions">
+          <button
+            aria-pressed={gridVisible}
+            onClick={() => onGridVisibleChange(!gridVisible)}
+            type="button"
+          >
+            {gridVisible ? "Hide grid" : "Show grid"}
+          </button>
+          <button onClick={onClose} type="button">
+            Close reference
+          </button>
+        </div>
       </header>
 
       <div className="reference-toolbar" aria-label="Reference zoom">

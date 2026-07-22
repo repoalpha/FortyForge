@@ -2,7 +2,7 @@
 
 ## Purpose
 
-FortyForge should stop relying on guessed mosaic-font tables as the primary way to recreate mastheads such as `PIXELCAST`. The editor should let the author capture exact Level 1 mosaic blocks from a trusted source masthead, move or stamp those blocks into the right place, and then reuse those captured blocks as the source for a masthead alphabet.
+Pixelcast Studio should stop relying on guessed mosaic-font tables as the primary way to recreate mastheads such as `PIXELCAST`. The editor should let the author capture exact Level 1 mosaic blocks from a trusted source masthead, move or stamp those blocks into the right place, and then reuse those captured blocks as the source for a masthead alphabet.
 
 The immediate workflow is to use the corrected `CITYNEWS` masthead as source material. Letters that already exist in `CITYNEWS`, such as `C`, `I`, `T`, `Y`, `N`, `E`, `W`, and `S`, should be copied exactly. Missing letters for `PIXELCAST`, such as `P`, `X`, `L`, and `A`, can still come from inferred or hand-authored blocks, but they should be editable and replaceable with captured blocks when better source artwork exists.
 

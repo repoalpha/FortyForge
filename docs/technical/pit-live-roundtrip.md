@@ -2,16 +2,16 @@
 
 ## Goal
 
-FortyForge should be able to pull a currently displayed PIT page, edit it, and push the changed page back without recompiling PIT.
+Pixelcast Studio should be able to pull a currently displayed PIT page, edit it, and push the changed page back without recompiling PIT.
 
 ## What Is Possible Now
 
-FortyForge already has the pieces for a file-based round trip if PIT exposes or watches page files:
+Pixelcast Studio already has the pieces for a file-based round trip if PIT exposes or watches page files:
 
 - Pull: copy a `.tti` page file from the PIT host into the local workspace.
-- Import: use the existing TTI importer to load the page into FortyForge.
-- Edit: use the FortyForge grid, control palette, mosaic painter, templates, and subpages.
-- Push: export TTI from FortyForge and copy it back to PIT's watched page directory.
+- Import: use the existing TTI importer to load the page into Pixelcast Studio.
+- Edit: use the Pixelcast Studio grid, control palette, mosaic painter, templates, and subpages.
+- Push: export TTI from Pixelcast Studio and copy it back to PIT's watched page directory.
 - Reload: rely on PIT watching the directory, or run a reload command over SSH.
 
 This is the safest first live workflow because it moves page data, not runtime code.
@@ -24,7 +24,7 @@ Local source reference is now available:
 - Source path: `/home/nzste/projects/pi-teletext`
 - Remote: `https://github.com/repoalpha/pi-teletext.git`
 
-To implement a real live connector, FortyForge still needs a running PIT target with:
+To implement a real live connector, Pixelcast Studio still needs a running PIT target with:
 
 - Hostname and SSH user.
 - Watched page directory, if any.
@@ -60,4 +60,4 @@ To implement a real live connector, FortyForge still needs a running PIT target 
 
 ## Open Gap
 
-FortyForge currently has a push-plan helper and TTI import/export, but no live SSH UI and no T42/raw importer. The PIT source folder is available for renderer and file-layout reference; the next live step is confirming the actual RPI/PIT watched directory and reload mechanism, then building a tested connector around that workflow.
+Pixelcast Studio currently has a push-plan helper and TTI import/export, but no live SSH UI and no T42/raw importer. The PIT source folder is available for renderer and file-layout reference; the next live step is confirming the actual RPI/PIT watched directory and reload mechanism, then building a tested connector around that workflow.

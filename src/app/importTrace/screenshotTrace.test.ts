@@ -12,10 +12,8 @@ import {
   createCalibratedTraceGrid,
   createTraceGridFromBounds,
   detectEdgeAssistedTraceGrid,
-  detectTraceGrid,
   nearestLevel1Colour,
   scanTeletextScreenshot,
-  traceTeletextScreenshot,
   type TraceCellHint,
   type TraceCell,
   type TraceImageData
@@ -502,9 +500,18 @@ function traceRow(rowIndex: number, text: string) {
   );
 }
 
+function fullImageGrid(image: TraceImageData) {
+  return createTraceGridFromBounds(image, {
+    left: 0,
+    top: 0,
+    right: image.width,
+    bottom: image.height
+  });
+}
+
 describe("screenshot trace", () => {
-  it("detects the PIT strict 40 by 25 grid from a clean screenshot", () => {
-    expect(detectTraceGrid(createImage(480, 500))).toEqual({
+  it("builds the PIT strict 40 by 25 full-image grid", () => {
+    expect(fullImageGrid(createImage(480, 500))).toEqual({
       columns: 40,
       rows: 25,
       left: 0,
@@ -571,6 +578,20 @@ describe("screenshot trace", () => {
     expect(grid.yLines?.[25]).toBe(520);
   });
 
+  it("uses an explicit calibrated grid in the maintained screenshot scanner", () => {
+    const image = createImage(500, 540);
+    const grid = createCalibratedTraceGrid(
+      image,
+      { left: 10, top: 20, right: 490, bottom: 520 },
+      {
+        xAnchors: [{ lineIndex: 10, position: 145 }],
+        yAnchors: [{ lineIndex: 5, position: 125 }]
+      }
+    );
+
+    expect(scanTeletextScreenshot(image, { grid }).grid).toEqual(grid);
+  });
+
   it("suggests non-uniform trace grid lines from colour edges", () => {
     const image = createImage(520, 560);
     const xLines = Array.from({ length: 41 }, (_, lineIndex) =>
@@ -604,7 +625,7 @@ describe("screenshot trace", () => {
 
   it("classifies a clean SAA5050 text cell", () => {
     const image = createImage(480, 500);
-    const grid = detectTraceGrid(image);
+    const grid = fullImageGrid(image);
     drawGlyph(image, 1, 2, "A", 7);
 
     expect(classifyTraceCell(image, grid, 1, 2)).toEqual(
@@ -620,7 +641,7 @@ describe("screenshot trace", () => {
 
   it("scans a later-font style widened glyph back to its finite SAA5050 character", () => {
     const image = createImage(480, 500);
-    const strictGrid = detectTraceGrid(image);
+    const strictGrid = fullImageGrid(image);
 
     drawWidenedGlyph(image, 3, 2, "A", 7);
 
@@ -712,7 +733,7 @@ describe("screenshot trace", () => {
     const scan = scanTeletextScreenshot(image);
     const cells = scan.cells.slice(12 * 40, (12 * 40) + 8);
 
-    expect(cells.every((cell) => cell.kind === "mosaic" || cell.kind === "text")).toBe(true);
+    expect(cells.every((cell) => cell.kind === "mosaic" || cell.kind === "text" || cell.kind === "line")).toBe(true);
     expect(scan.rows[12].cells.slice(0, 8).every((cell) => cell.kind !== "empty")).toBe(true);
   });
 
@@ -810,7 +831,7 @@ describe("screenshot trace", () => {
 
     drawMode7DoubleHeightText(image, 6, 1, "NEWS", 3);
 
-    const scan = scanTeletextScreenshot(image);
+    const scan = scanTeletextScreenshot(image, { recoveryProfile: "known-reference" });
 
     expect(scan.cells.slice(6 * 40 + 1, 6 * 40 + 5).map((cell) => cell.value).join("")).toBe("NEWS");
     expect(scan.cells.slice(6 * 40 + 1, 6 * 40 + 5).every((cell) => cell.doubleHeight === "top")).toBe(true);
@@ -827,7 +848,7 @@ describe("screenshot trace", () => {
 
     drawMode7WidenedDoubleHeightText(image, 21, 1, "BBC RADIO", 7);
 
-    const scan = scanTeletextScreenshot(image);
+    const scan = scanTeletextScreenshot(image, { recoveryProfile: "known-reference" });
 
     expect(scan.cells.slice(21 * 40 + 1, 21 * 40 + 10).map((cell) => cell.value ?? " ").join("")).toBe("BBC RADIO");
     expect(scan.cells.slice(21 * 40 + 1, 21 * 40 + 10).filter((cell) => cell.value).every((cell) => cell.doubleHeight === "top")).toBe(true);
@@ -918,7 +939,7 @@ describe("screenshot trace", () => {
       }
     }
 
-    const scan = scanTeletextScreenshot(image);
+    const scan = scanTeletextScreenshot(image, { recoveryProfile: "known-reference" });
     const textCells = scan.cells.slice(6 * 40 + 1, 6 * 40 + 5);
     const bottomCells = scan.cells.slice(7 * 40 + 1, 7 * 40 + 5);
     const mosaicCells = scan.cells.slice(6 * 40 + 12, 6 * 40 + 40);
@@ -935,7 +956,7 @@ describe("screenshot trace", () => {
 
     drawMode7DoubleHeightText(image, 10, 6, "BBC2", 7);
 
-    const scan = scanTeletextScreenshot(image);
+    const scan = scanTeletextScreenshot(image, { recoveryProfile: "known-reference" });
     const textCells = scan.cells.slice(10 * 40 + 6, 10 * 40 + 10);
     const bottomCells = scan.cells.slice(11 * 40 + 6, 11 * 40 + 10);
 
@@ -955,7 +976,7 @@ describe("screenshot trace", () => {
     drawMode7DoubleHeightText(image, 10, 1, "BBC2 NEWS", 7);
     drawMode7CaptureText(image, 12, 1, "STERLING £1.4840", 3);
 
-    const scan = scanTeletextScreenshot(image);
+    const scan = scanTeletextScreenshot(image, { recoveryProfile: "known-reference" });
     const separatorCells = scan.cells.slice(9 * 40, 10 * 40);
     const topCells = scan.cells.slice(10 * 40 + 1, 10 * 40 + 10);
     const bottomCells = scan.cells.slice(11 * 40 + 1, 11 * 40 + 10);
@@ -969,7 +990,7 @@ describe("screenshot trace", () => {
     expect(normalCells.some((cell) => cell.doubleHeight)).toBe(false);
   });
 
-  it("does not use language-only band repair without paired double-height evidence", () => {
+  it("uses paired raster evidence to recover a low-resolution double-height heading", () => {
     const image = createImage(320, 250);
 
     for (let column = 0; column < 40; column += 1) {
@@ -979,14 +1000,14 @@ describe("screenshot trace", () => {
     drawLowResolutionDoubleHeightText(image, 12, 1, "FT INDEX CLOSED", 7);
     drawLowResolutionText(image, 14, 1, "STERLING $1.4840", 3);
 
-    const scan = scanTeletextScreenshot(image);
+    const scan = scanTeletextScreenshot(image, { recoveryProfile: "known-reference" });
     const topCells = scan.cells.slice(12 * 40 + 1, 12 * 40 + 16);
     const bottomCells = scan.cells.slice(13 * 40 + 1, 13 * 40 + 16);
     const normalCells = scan.cells.slice(14 * 40 + 1, 14 * 40 + 18);
 
-    expect(topCells.map((cell) => cell.value ?? " ").join("")).not.toBe("FT INDEX CLOSED");
-    expect(topCells.some((cell) => cell.doubleHeight === "top")).toBe(false);
-    expect(bottomCells.some((cell) => cell.doubleHeight === "bottom")).toBe(false);
+    expect(topCells.map((cell) => cell.value ?? " ").join("")).toBe("FT INDEX CLOSED");
+    expect(topCells.every((cell) => cell.doubleHeight === "top")).toBe(true);
+    expect(bottomCells.every((cell) => cell.doubleHeight === "bottom")).toBe(true);
     expect(normalCells.map((cell) => cell.value ?? " ").join("")).toContain("STERLING");
     expect(normalCells.some((cell) => cell.doubleHeight)).toBe(false);
   });
@@ -1114,6 +1135,7 @@ describe("screenshot trace", () => {
 
     top[2] = { ...top[2], kind: "uncertain", confidence: 0.7 };
     top[3] = traceCell(12, 3, "Y", 0.7);
+    top[3].foreground = { palette: "level1", index: 7 };
     top[4] = { ...top[4], doubleHeight: "top" };
     ["I", "N", "D", "E", "X"].forEach((value, offset) => {
       const column = offset + 5;
@@ -1265,6 +1287,48 @@ describe("screenshot trace", () => {
     expect(rendered.cells[12].foreground.index).toBe(3);
   });
 
+  it("encodes solid foreground cells inside a mosaic band instead of dropping them as colour-only cells", () => {
+    const cells = Array.from({ length: 25 }, (_, rowIndex) => traceRow(rowIndex, ""));
+    const row = cells[5];
+
+    for (let column = 0; column < 3; column += 1) {
+      row[column] = {
+        ...row[column],
+        kind: "colour",
+        background: { palette: "level1", index: 4 }
+      };
+    }
+    for (let column = 3; column < 11; column += 1) {
+      row[column] = {
+        ...row[column],
+        kind: "mosaic",
+        foreground: { palette: "level1", index: 3 },
+        background: { palette: "level1", index: 4 },
+        sixelMask: 0b001100
+      };
+    }
+    row[11] = {
+      ...row[11],
+      kind: "colour",
+      foreground: { palette: "level1", index: 3 },
+      background: { palette: "level1", index: 3 }
+    };
+
+    const reconstructed = createRowsFromTraceCells(cells.flat()).rows[5];
+    const rendered = renderLevel1Row(reconstructed).cells[11];
+
+    expect(reconstructed.cells[11]).toEqual(expect.objectContaining({
+      kind: "mosaic",
+      byte: 0x7f
+    }));
+    expect(rendered).toEqual(expect.objectContaining({
+      visible: true,
+      mode: "graphics",
+      foreground: { palette: "level1", index: 3 },
+      background: { palette: "level1", index: 4 }
+    }));
+  });
+
   it("brute-forces inverted mosaic cells using the dominant region colour as background", () => {
     const image = createImage(320, 288, 4);
 
@@ -1312,7 +1376,7 @@ describe("screenshot trace", () => {
     const corrected = applyScannerTextCorrections(cells);
     const row = corrected.map((cell) => cell.value ?? " ").join("").trimEnd();
 
-    expect(row).toBe("Wall Street.. l27   Forex........ l29");
+    expect(row).toBe("Wall Street.. 127   Forex........ 129");
   });
 
   it("does not apply double-height footer phrase repairs to ordinary text rows", () => {
@@ -1485,7 +1549,7 @@ describe("screenshot trace", () => {
 
   it("classifies a clean contiguous mosaic cell", () => {
     const image = createImage(480, 500);
-    const grid = detectTraceGrid(image);
+    const grid = fullImageGrid(image);
     drawMosaic(image, 2, 3, 0b100101);
 
     expect(classifyTraceCell(image, grid, 2, 3)).toEqual(
@@ -1503,7 +1567,7 @@ describe("screenshot trace", () => {
     const image = createImage(480, 500);
     drawGlyph(image, 4, 1, "A", 1);
 
-    const result = traceTeletextScreenshot(image);
+    const result = scanTeletextScreenshot(image);
     const row = result.rows[4];
 
     expect(row.cells[0]).toEqual(
@@ -1524,11 +1588,11 @@ describe("screenshot trace", () => {
     );
   });
 
-  it("normalises the X/0 header row when importing through the manually aligned trace path", () => {
+  it("normalises the X/0 header row when scanning a screenshot", () => {
     const image = createImage(480, 500);
     drawText(image, 0, 1, "PlO2   CEEFAX lO2  Mon  3 Dct  2O:5O/4B");
 
-    const result = traceTeletextScreenshot(image);
+    const result = scanTeletextScreenshot(image);
     const headerText = result.rows[0].cells
       .map((cell) => cell.character?.value ?? " ")
       .join("")
@@ -1537,16 +1601,20 @@ describe("screenshot trace", () => {
     expect(headerText).toBe(" P102   CEEFAX 102  Mon  3 Oct  20:50/48");
   });
 
-  it("reports uncertain cells without blocking editable output", () => {
+  it("reports uncertain classified cells without blocking editable row reconstruction", () => {
     const image = createImage(480, 500);
-    const grid = detectTraceGrid(image);
+    const grid = fullImageGrid(image);
 
     for (let y = 0; y < 20; y += 1) {
       setPixel(image, 6, 5 * 20 + y, 7);
     }
 
     const cell = classifyTraceCell(image, grid, 5, 0);
-    const result = traceTeletextScreenshot(image);
+    const cells = Array.from({ length: 25 }, (_, rowIndex) => traceRow(rowIndex, "")).flat();
+
+    cells[5 * 40] = cell;
+
+    const result = createRowsFromTraceCells(cells);
 
     expect(cell.kind).toBe("uncertain");
     expect(result.warnings[0]).toEqual(
@@ -1569,7 +1637,7 @@ describe("screenshot trace", () => {
 
   it("uses a text hint to keep the best SAA5050 match when confidence is low", () => {
     const image = createImage(480, 500);
-    const grid = detectTraceGrid(image);
+    const grid = fullImageGrid(image);
     const glyph = getBitmapGlyph("A");
 
     for (let y = 0; y < glyph.length; y += 1) {
@@ -1603,7 +1671,7 @@ describe("screenshot trace", () => {
       { rowIndex: 6, column: 4, kind: "double-height-top" }
     ];
 
-    const result = traceTeletextScreenshot(image, detectTraceGrid(image), hints);
+    const result = scanTeletextScreenshot(image, { hints });
 
     expect(result.warnings).toEqual(expect.arrayContaining([
       expect.objectContaining({

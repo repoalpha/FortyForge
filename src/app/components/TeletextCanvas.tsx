@@ -1,19 +1,23 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { renderLevel1Row } from "../../core";
 import type {
   Cell,
   CellBlock,
   CellRectangle,
+  EnhancementPacket,
+  G3LineCode,
   MosaicSixelOperation,
   TeletextFontProfileId,
   TeletextRow
 } from "../../core";
+import { extractG3LineCells } from "../../core";
 import type { RenderedLevel1Cell, RenderedLevel1Row } from "../../core";
 import {
   drawBitmapGlyph,
   drawMosaicGlyph
 } from "../preview/bitmapGlyphRenderer";
+import { drawG3LineGlyph } from "../preview/g3LineRenderer";
 import { level1ColourToCss } from "../preview/teletextColours";
 import {
   createTeletextViewport,
@@ -22,7 +26,7 @@ import {
 } from "../preview/teletextViewport";
 import type { TeletextPreviewProfileId } from "../preview/teletextViewport";
 import type { CellSelection } from "../state/editorStore";
-import type { MosaicPaintMode } from "./ToolDock";
+import type { G3LinePaintMode, MosaicPaintMode } from "./ToolDock";
 
 const COLUMN_COUNT = 40;
 const ROW_COUNT = 25;
@@ -30,7 +34,7 @@ export const FRAMEBUFFER_CELL_WIDTH = 16;
 export const FRAMEBUFFER_CELL_HEIGHT = 20;
 export const PIT_STRICT_CELL_WIDTH = 12;
 export const PIT_STRICT_CELL_HEIGHT = 20;
-export type EditorTool = "text" | "mosaic" | "import-trace" | "blocks";
+export type EditorTool = "text" | "lines" | "mosaic" | "import-trace" | "blocks";
 
 interface TeletextCanvasProps {
   rows: TeletextRow[];
@@ -40,14 +44,25 @@ interface TeletextCanvasProps {
     block: CellBlock;
     target: CellSelection;
   };
+  enhancementPackets?: EnhancementPacket[];
+  animateFlash?: boolean;
+  linePaintMode?: G3LinePaintMode;
   mosaicPaintMode?: MosaicPaintMode;
   previewProfileId?: TeletextPreviewProfileId;
   receiverFontProfileId?: TeletextFontProfileId;
+  revealConcealed?: boolean;
+  readOnly?: boolean;
   rectangleSelection?: CellRectangle;
   onBlockPreviewTargetChange?: (selection: CellSelection) => void;
   onBlockStamp?: (selection: CellSelection) => void;
   onCellSelect: (selection: CellSelection) => void;
   onCellDelete: () => void;
+  onG3LinePaint?: (
+    rowIndex: number,
+    column: number,
+    code: G3LineCode | undefined,
+    options?: { coalesceWithPrevious?: boolean }
+  ) => void;
   onRectangleClear?: () => void;
   onRectangleSelect?: (rectangle: CellRectangle) => void;
   onRowClear?: () => void;
@@ -101,6 +116,15 @@ export function displayBackgroundForRenderedCell(cell: RenderedLevel1Cell) {
   return level1ColourToCss(cell.background);
 }
 
+export function level1RenderOptionsForPreview(profileId: TeletextPreviewProfileId) {
+  return profileId === "pit-strict"
+    ? {}
+    : {
+      useCellBackgroundColours: true,
+      useMosaicCellColours: true
+    };
+}
+
 export function mosaicMaskForRenderedCell(cell: RenderedLevel1Cell) {
   if (cell.source.kind === "mosaic" && cell.source.mosaic) {
     return cell.source.mosaic.sixelMask;
@@ -151,10 +175,15 @@ function operationFromPointerEvent(event: CanvasPointerLikeEvent) {
 
 export function TeletextCanvas({
   activeTool = "text",
+  animateFlash = true,
   blockPreview,
+  enhancementPackets = [],
+  linePaintMode = { code: 0x51, level1Fallback: true },
   mosaicPaintMode = { kind: "inactive" },
   previewProfileId = "studio-large",
-  receiverFontProfileId = "saa5050-classic",
+  receiverFontProfileId = "ets-1990s",
+  revealConcealed = false,
+  readOnly = false,
   rectangleSelection,
   rows,
   selection,
@@ -162,6 +191,7 @@ export function TeletextCanvas({
   onBlockStamp,
   onCellSelect,
   onCellDelete,
+  onG3LinePaint,
   onMosaicPresetPaint,
   onMosaicSixelEdit,
   onRectangleClear,
@@ -175,7 +205,9 @@ export function TeletextCanvas({
   const gridRef = useRef<HTMLDivElement | null>(null);
   const arrowRepeatActiveRef = useRef(false);
   const isPaintingRef = useRef(false);
+  const lastLineCellRef = useRef<string | undefined>(undefined);
   const rectangleAnchorRef = useRef<CellSelection | undefined>(undefined);
+  const [flashVisible, setFlashVisible] = useState(true);
   const columns = Array.from({ length: COLUMN_COUNT }, (_, index) => index + 1);
   const rowLabels = Array.from({ length: ROW_COUNT }, (_, index) => index === 0 ? "X/0" : String(index));
   const viewport = useMemo(
@@ -191,6 +223,21 @@ export function TeletextCanvas({
     },
     [previewProfileId]
   );
+
+  useEffect(() => {
+    if (!animateFlash) {
+      setFlashVisible(true);
+      return;
+    }
+
+    const updateFlashPhase = () => {
+      setFlashVisible(Date.now() % 1000 < 750);
+    };
+    updateFlashPhase();
+    const interval = window.setInterval(updateFlashPhase, 125);
+
+    return () => window.clearInterval(interval);
+  }, [animateFlash]);
 
   function rectangleFromCells(first: CellSelection, second: CellSelection): CellRectangle {
     return {
@@ -252,10 +299,15 @@ export function TeletextCanvas({
     const renderedRows = rows.map((row) => ({
       row,
       renderedRow: renderLevel1Row(row, {
-        useCellBackgroundColours: true,
-        useMosaicCellColours: true
+        ...level1RenderOptionsForPreview(previewProfileId),
+        flashPhase: flashVisible ? "on" : "off",
+        revealMode: revealConcealed ? "show" : "hide"
       })
     }));
+    const g3Lines = extractG3LineCells(enhancementPackets);
+    const enhancedCells = new Set(
+      g3Lines.map((line) => `${line.rowIndex}:${line.column}`)
+    );
 
     for (const { row, renderedRow } of renderedRows) {
       for (const cell of renderedRow.cells) {
@@ -291,6 +343,10 @@ export function TeletextCanvas({
           viewport.height
         );
 
+        if (enhancedCells.has(`${row.index}:${cell.column}`)) {
+          continue;
+        }
+
         const sixelMask = mosaicMaskForRenderedCell(cell);
 
         if (sixelMask !== undefined) {
@@ -298,9 +354,9 @@ export function TeletextCanvas({
             cellHeight,
             cellWidth: viewport.cellWidth,
             colour: level1ColourToCss(cell.foreground),
-            separated: cell.source.kind === "mosaic"
+            separated: cell.heldMosaicSeparated ?? (cell.source.kind === "mosaic"
               ? cell.source.mosaic?.separated || cell.separatedGraphics
-              : cell.separatedGraphics,
+              : cell.separatedGraphics),
             sixelMask,
             x,
             y
@@ -319,7 +375,24 @@ export function TeletextCanvas({
       }
     }
 
-    if (selection) {
+    for (const line of g3Lines) {
+      const renderedCell = renderedRows[line.rowIndex]?.renderedRow.cells[line.column];
+
+      if (!renderedCell) {
+        continue;
+      }
+
+      drawG3LineGlyph(context, {
+        cellHeight: viewport.cellHeight,
+        cellWidth: viewport.cellWidth,
+        code: line.code,
+        colour: level1ColourToCss(renderedCell.foreground),
+        x: line.column * viewport.cellWidth,
+        y: line.rowIndex * viewport.cellHeight
+      });
+    }
+
+    if (selection && previewProfileId !== "pit-strict") {
       context.strokeStyle = "#f2d15c";
       context.lineWidth = 2;
       context.strokeRect(
@@ -345,9 +418,10 @@ export function TeletextCanvas({
       drawRectangleOverlay(context, previewRectangle, "rgba(98, 214, 255, 0.22)", true);
       drawRectangleOverlay(context, previewRectangle, "#62d6ff");
     }
-  }, [blockPreview, receiverFontProfileId, rows, rectangleSelection, selection, viewport]);
+  }, [blockPreview, enhancementPackets, flashVisible, previewProfileId, receiverFontProfileId, revealConcealed, rows, rectangleSelection, selection, viewport]);
 
   function selectCell(nextSelection: CellSelection) {
+    if (readOnly) return;
     onCellSelect(nextSelection);
     gridRef.current?.focus({ preventScroll: true });
   }
@@ -414,6 +488,30 @@ export function TeletextCanvas({
     }
   }
 
+  function applyLinePointerEdit(event: CanvasPointerLikeEvent) {
+    const target = hitTestCanvasPointer(event);
+
+    if (!target || activeTool !== "lines" || !onG3LinePaint || target.hit.rowIndex === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    selectCell(target.hit);
+    const key = `${target.hit.rowIndex}:${target.hit.column}`;
+
+    if (lastLineCellRef.current === key) {
+      return;
+    }
+
+    onG3LinePaint(
+      target.hit.rowIndex,
+      target.hit.column,
+      event.button === 2 || (event.buttons & 2) === 2 ? undefined : linePaintMode.code,
+      { coalesceWithPrevious: lastLineCellRef.current !== undefined }
+    );
+    lastLineCellRef.current = key;
+  }
+
   function stampPresetAtSelectionOffset(offset: -1 | 1) {
     if (
       activeTool !== "mosaic"
@@ -456,6 +554,7 @@ export function TeletextCanvas({
           className={`teletext-framebuffer teletext-framebuffer-${previewProfileId}`}
           height={viewport.height}
           onClick={(event) => {
+            if (readOnly) return;
             const target = hitTestCanvasPointer(event);
 
             if (target) {
@@ -464,15 +563,20 @@ export function TeletextCanvas({
                 return;
               }
 
+              if (activeTool === "lines") {
+                return;
+              }
+
               selectCell(target.hit);
             }
           }}
           onContextMenu={(event) => {
-            if (activeTool === "mosaic") {
+            if (activeTool === "mosaic" || activeTool === "lines") {
               event.preventDefault();
             }
           }}
           onPointerDown={(event) => {
+            if (readOnly) return;
             if (activeTool === "blocks") {
               const target = hitTestCanvasPointer(event);
 
@@ -484,13 +588,23 @@ export function TeletextCanvas({
               return;
             }
 
+
+            if (activeTool === "lines") {
+              lastLineCellRef.current = undefined;
+              isPaintingRef.current = true;
+              applyLinePointerEdit(event);
+              return;
+            }
+
             isPaintingRef.current = activeTool === "mosaic";
             applyMosaicPointerEdit(event);
           }}
           onPointerLeave={() => {
             isPaintingRef.current = false;
+            lastLineCellRef.current = undefined;
           }}
           onPointerMove={(event) => {
+            if (readOnly) return;
             if (activeTool === "blocks") {
               const target = hitTestCanvasPointer(event);
 
@@ -504,6 +618,12 @@ export function TeletextCanvas({
               return;
             }
 
+
+            if (activeTool === "lines" && isPaintingRef.current && event.buttons !== 0) {
+              applyLinePointerEdit(event);
+              return;
+            }
+
             if (isPaintingRef.current && event.buttons !== 0) {
               applyMosaicPointerEdit(event);
             }
@@ -511,9 +631,16 @@ export function TeletextCanvas({
           onPointerUp={() => {
             rectangleAnchorRef.current = undefined;
             isPaintingRef.current = false;
+            lastLineCellRef.current = undefined;
           }}
           onMouseDown={(event) => {
             if (typeof window.PointerEvent === "undefined") {
+              if (activeTool === "lines") {
+                lastLineCellRef.current = undefined;
+                isPaintingRef.current = true;
+                applyLinePointerEdit(event);
+                return;
+              }
               isPaintingRef.current = activeTool === "mosaic";
               applyMosaicPointerEdit(event);
             }
@@ -526,6 +653,7 @@ export function TeletextCanvas({
       <div
         className="teletext-grid teletext-access-grid"
         onKeyDown={(event) => {
+          if (readOnly) return;
           const key = event.key.toLowerCase();
           const modifierKey = event.ctrlKey || event.metaKey;
 
@@ -612,8 +740,9 @@ export function TeletextCanvas({
         }}
         role="grid"
         aria-label="40 by 25 teletext grid"
+        aria-readonly={readOnly}
         ref={gridRef}
-        tabIndex={0}
+        tabIndex={readOnly ? -1 : 0}
       >
         {rows.map((row) => (
           <div
@@ -632,6 +761,7 @@ export function TeletextCanvas({
                     : ""
                 ].filter(Boolean).join(" ")}
                 key={`${row.index}-${cell.column}`}
+                disabled={readOnly}
                 onClick={() => {
                   const nextSelection = { rowIndex: row.index, column: cell.column };
 
@@ -640,6 +770,12 @@ export function TeletextCanvas({
                   if (activeTool === "mosaic" && mosaicPaintMode.kind === "preset") {
                     onMosaicPresetPaint?.(row.index, cell.column, mosaicPaintMode.mask);
                     gridRef.current?.focus({ preventScroll: true });
+                    return;
+                  }
+
+                  if (activeTool === "lines" && row.index > 0) {
+                    onG3LinePaint?.(row.index, cell.column, linePaintMode.code);
+                    selectCell(nextSelection);
                     return;
                   }
 

@@ -3,6 +3,9 @@ import {
   SAA5050_GLYPH_HEIGHT,
   SAA5050_GLYPH_WIDTH
 } from "./saa5050Font";
+import { BEDSTEAD_GLYPHS } from "./bedsteadFont";
+import { ETS_TELETEXT_GLYPHS } from "./etsTeletextFont";
+import { PHILIPS_LATER_GLYPHS } from "./philipsLaterFont";
 import type { TeletextFontProfileId } from "../../core";
 
 export type BitmapGlyph = string[];
@@ -420,37 +423,28 @@ const BITMAP_GLYPHS: Record<string, BitmapGlyph> = {
   ]
 };
 
-const BEDSTEAD_GLYPHS: Partial<Record<string, BitmapGlyph>> = {
-  A: [
-    "000000000000",
-    "000000000000",
-    "000000110000",
-    "000001111000",
-    "000011111100",
-    "000111001110",
-    "001110000111",
-    "001100000011",
-    "001100000011",
-    "001100000011",
-    "001111111111",
-    "001111111111",
-    "001100000011",
-    "001100000011",
-    "001100000011",
-    "001100000011",
-    "000000000000",
-    "000000000000",
-    "000000000000",
-    "000000000000"
-  ]
-};
-
 export function getBitmapGlyph(value: string, profileId: TeletextFontProfileId = "saa5050-classic"): BitmapGlyph {
+  if (profileId === "ets-1990s") {
+    const etsGlyph = ETS_TELETEXT_GLYPHS[value] ?? ETS_TELETEXT_GLYPHS[value.toUpperCase()];
+
+    if (etsGlyph) {
+      return [...etsGlyph];
+    }
+  }
+
+  if (profileId === "tdatext-later") {
+    const laterGlyph = PHILIPS_LATER_GLYPHS[value] ?? PHILIPS_LATER_GLYPHS[value.toUpperCase()];
+
+    if (laterGlyph) {
+      return [...laterGlyph];
+    }
+  }
+
   if (profileId === "bedstead-extended") {
     const bedsteadGlyph = BEDSTEAD_GLYPHS[value] ?? BEDSTEAD_GLYPHS[value.toUpperCase()];
 
     if (bedsteadGlyph) {
-      return bedsteadGlyph;
+      return [...bedsteadGlyph];
     }
   }
 

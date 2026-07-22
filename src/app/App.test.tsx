@@ -7,7 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { FRAMEBUFFER_CELL_HEIGHT, FRAMEBUFFER_CELL_WIDTH } from "./components/TeletextCanvas";
 import { getBitmapGlyph } from "./preview/bitmapGlyphRenderer";
-import { createDefaultProject, exportNativeProject } from "../core";
+import {
+  createDefaultProject,
+  createPixelcastPocProject,
+  exportNativeProject,
+  replacePageWithCarouselCommand
+} from "../core";
 
 const TRACE_TEST_PALETTE = [
   [0, 0, 0],
@@ -164,6 +169,15 @@ describe("App", () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:pixelcast-test-download")
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
   });
 
   it("renders the model-backed editor shell", () => {
@@ -194,6 +208,23 @@ describe("App", () => {
 
     expect(screen.getByText("0 validation issues")).toBeInTheDocument();
     expect(screen.getByText("25 packet preview records")).toBeInTheDocument();
+  });
+
+  it("does not crash when browser autosave storage is full", () => {
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
+      if (key === "pixelcast.currentProject") {
+        throw new DOMException("Storage quota exceeded", "QuotaExceededError");
+      }
+      return originalSetItem.call(this, key, value);
+    });
+
+    render(<App />);
+
+    expect(screen.getByRole("heading", { name: "Page 100" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("status")).toHaveTextContent(/browser autosave is full/i);
+    expect(screen.getByRole("grid", { name: "40 by 25 teletext grid" })).toBeInTheDocument();
   });
 
   it("groups the right tool dock into tabs and shows masthead controls only on the Masthead tab", () => {
@@ -232,17 +263,35 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Stamp masthead" })).not.toBeInTheDocument();
   });
 
-  it("selects the receiver font profile from the Tools tab", () => {
-    render(<App />);
+  it("persists the global receiver font profile across reloads", () => {
+    const firstRender = render(<App />);
 
     const receiverFont = screen.getByLabelText("Receiver font");
 
-    expect(receiverFont).toHaveValue("saa5050-classic");
+    expect(receiverFont).toHaveValue("ets-1990s");
 
-    fireEvent.change(receiverFont, { target: { value: "bedstead-extended" } });
+    expect(screen.getByRole("option", { name: "ETS 1990s / EBU Level 2.5" }))
+      .toBeInTheDocument();
 
-    expect(screen.getByRole("option", { name: "Bedstead / Teletext50" })).toBeInTheDocument();
-    expect(receiverFont).toHaveValue("bedstead-extended");
+    fireEvent.change(receiverFont, { target: { value: "tdatext-later" } });
+
+    expect(screen.getByRole("option", { name: "Philips later / TDA" })).toBeInTheDocument();
+    expect(receiverFont).toHaveValue("tdatext-later");
+    expect(window.localStorage.getItem("pixelcast.receiverFontProfile"))
+      .toBe("tdatext-later");
+
+    firstRender.unmount();
+    render(<App />);
+
+    expect(screen.getByLabelText("Receiver font")).toHaveValue("tdatext-later");
+  });
+
+  it("falls back to ETS for an unknown global receiver font", () => {
+    window.localStorage.setItem("fortyforge.receiverFontProfile", "unknown-profile");
+
+    render(<App />);
+
+    expect(screen.getByLabelText("Receiver font")).toHaveValue("ets-1990s");
   });
 
   it("inserts byte-correct teletext symbols from the Tools tab", () => {
@@ -266,6 +315,37 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Solid block" }));
 
     expect(screen.getByRole("gridcell", { name: "Row 1, column 3, byte 127" })).toHaveTextContent("█");
+  });
+
+  it("authors ETSI G3 line glyphs with an editable Level 1 fallback", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Lines" }));
+    expect(screen.getByRole("heading", { name: "ETSI Line Drawing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Horizontal line" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 5, column 8, byte 32"
+    }));
+    expect(screen.getByRole("gridcell", {
+      name: "Row 5, column 8, byte 96"
+    })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erase line glyph" }));
+    fireEvent.click(screen.getByRole("gridcell", {
+      name: "Row 5, column 8, byte 96"
+    }));
+    expect(screen.getByRole("gridcell", {
+      name: "Row 5, column 8, byte 32"
+    })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByRole("gridcell", {
+      name: "Row 5, column 8, byte 96"
+    })).toBeInTheDocument();
   });
 
   it("supports cell typing and template application", () => {
@@ -629,8 +709,38 @@ describe("App", () => {
     );
     fireEvent.click(screen.getByRole("tab", { name: "Trace" }));
     expect(screen.getByLabelText("Reference screenshot")).toHaveAttribute("type", "file");
-    expect(screen.getByRole("button", { name: "Try auto trace" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Scan screenshot" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Try auto trace" })).not.toBeInTheDocument();
     expect(screen.getByText("Load a screenshot as a side-by-side reference.")).toBeInTheDocument();
+  });
+
+  it("starts an existing feed carousel only on request, pauses it for Trace, and can disable it persistently", async () => {
+    const project = createDefaultProject();
+    const page = project.services[0].pages[0];
+    const rows = page.subpages[0].rows;
+    const withCarousel = replacePageWithCarouselCommand(
+      project.services[0].id,
+      page.id,
+      [rows, rows],
+      8,
+      page.subpages[0].id
+    ).apply(project);
+    window.localStorage.setItem("pixelcast.currentProject", exportNativeProject(withCarousel));
+
+    render(<App />);
+    expect(screen.getByRole("button", { name: "Play carousel" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "0002" }));
+    expect(screen.getByText("Subpage 0002")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play carousel" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Play carousel" }));
+    expect(screen.getByRole("button", { name: "Pause carousel" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Trace" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Play carousel" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Disable carousel" }));
+    expect(screen.getByRole("button", { name: "Enable carousel" })).toBeInTheDocument();
+    expect(screen.getByText("2 static subpages")).toBeInTheDocument();
   });
 
   it("places an uploaded screenshot beside the canvas as a manual reference", () => {
@@ -656,7 +766,7 @@ describe("App", () => {
     expect(screen.getByRole("img", { name: "Reference screenshot test-page.png" }))
       .toHaveAttribute("src", "blob:fortyforge-reference");
     expect(screen.getByText("Reference loaded: test-page.png")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try auto trace" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Scan screenshot" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "Hide grid" })).toHaveAttribute(
       "aria-pressed",
       "true"
@@ -691,6 +801,36 @@ describe("App", () => {
     expect(screen.getByRole("img", { name: "Reference screenshot text-mode-page.png" }))
       .toHaveAttribute("src", "blob:fortyforge-reference");
     expect(screen.getByRole("separator", { name: "Resize reference panel" })).toBeInTheDocument();
+  });
+
+  it("closes the reference image without removing the editable teletext page", () => {
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:fortyforge-reference")
+    });
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Import Trace" }));
+    fireEvent.change(screen.getByLabelText("Reference screenshot"), {
+      target: {
+        files: [new File(["reference"], "close-page.png", { type: "image/png" })]
+      }
+    });
+
+    expect(screen.getByRole("region", { name: "Reference screenshot" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close reference" }));
+
+    expect(screen.queryByRole("region", { name: "Reference screenshot" })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "PIT framebuffer preview" })).toBeInTheDocument();
+    expect(screen.getByText("Reference closed. The scanned teletext page remains editable."))
+      .toBeInTheDocument();
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:fortyforge-reference");
   });
 
   it("widens the reference panel by dragging the split handle", () => {
@@ -1522,6 +1662,36 @@ describe("App", () => {
     expect(screen.getByText("Rows 1-2, columns 1-3")).toBeInTheDocument();
   });
 
+  it("keeps the selected block when the feed target is the current page", () => {
+    const project = createPixelcastPocProject();
+    const source = project.contentSources[0];
+    project.contentSnapshots = [{
+      id: "selection-snapshot",
+      sourceId: source.id,
+      capturedAt: "2026-07-22T00:00:00.000Z",
+      status: "ok",
+      records: [{ id: "selection-story", title: "Selected area story", fields: {} }]
+    }];
+    window.localStorage.setItem("pixelcast.currentProject", exportNativeProject(project));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Blocks" }));
+    const canvas = screen.getByRole("img", { name: "PIT framebuffer preview" });
+    setCanvasBounds(canvas);
+    fireEvent(canvas, canvasPointerEvent("pointerdown", 5, 2));
+    fireEvent(canvas, canvasPointerEvent("pointermove", 12, 35));
+    fireEvent(canvas, canvasPointerEvent("pointerup", 12, 35));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Feeds" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Feed target page" }), {
+      target: { value: project.services[0].pages[0].id }
+    });
+
+    expect(screen.getByRole("option", { name: "Current page rectangle (with artwork)" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Feed target area" })).toHaveValue("selection");
+  });
+
   it("clears block rectangle selection with Escape", () => {
     render(<App />);
 
@@ -1891,7 +2061,7 @@ describe("App", () => {
       name: "Row 1, column 1, byte 32"
     }));
     fireEvent.keyDown(grid, { key: "T" });
-    fireEvent.click(screen.getByRole("button", { name: "Save as template" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save template to disk" }));
 
     expect(screen.getByRole("button", { name: "Custom template 1" })).toBeInTheDocument();
 
@@ -1914,9 +2084,9 @@ describe("App", () => {
       name: "Row 1, column 1, byte 32"
     }));
     fireEvent.keyDown(grid, { key: "A" });
-    fireEvent.click(screen.getByRole("button", { name: "Save as template" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save template to disk" }));
     fireEvent.keyDown(grid, { key: "B" });
-    fireEvent.click(screen.getByRole("button", { name: "Save as template" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save template to disk" }));
 
     expect(screen.getByRole("button", { name: "Custom template 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Custom template 2" })).toBeInTheDocument();
@@ -1938,6 +2108,21 @@ describe("App", () => {
     })).toHaveTextContent("B");
   });
 
+  it("recalls the independent template library even when the saved project cannot load", () => {
+    const { unmount } = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save template to disk" }));
+    expect(window.localStorage.getItem("pixelcast.templateLibrary")).toContain("custom-template-1");
+
+    unmount();
+    window.localStorage.setItem("pixelcast.currentProject", "{damaged project");
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: "Custom template 1" })).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Saved templates"))
+      .getByRole("button", { name: "Custom template 1" })).toBeInTheDocument();
+  });
+
   it("deletes a custom template from the right-click template menu", () => {
     render(<App />);
     const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
@@ -1946,7 +2131,7 @@ describe("App", () => {
       name: "Row 1, column 1, byte 32"
     }));
     fireEvent.keyDown(grid, { key: "T" });
-    fireEvent.click(screen.getByRole("button", { name: "Save as template" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save template to disk" }));
 
     const customTemplate = screen.getByRole("button", { name: "Custom template 1" });
 
@@ -1990,6 +2175,76 @@ describe("App", () => {
     expect(screen.getByRole("gridcell", {
       name: "Row 1, column 1, byte 65"
     })).toHaveTextContent("A");
+  });
+
+  it("shows generated live content by default when returning to a bound page", async () => {
+    const project = createPixelcastPocProject();
+    project.contentSnapshots = [{
+      id: "snapshot-news",
+      sourceId: "source-news",
+      capturedAt: new Date().toISOString(),
+      status: "ok",
+      records: [{
+        id: "story",
+        title: "Generated bulletin",
+        body: Array.from({ length: 90 }, (_, index) => `sentence ${index + 1}`).join(" "),
+        fields: {}
+      }]
+    }];
+    window.localStorage.setItem("pixelcast.currentProject", exportNativeProject(project));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "102.00 News" }));
+
+    await waitFor(() => expect(screen.getByText(/generated 1\/\d+/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Edit template" })).toBeInTheDocument();
+    const liveSubpages = screen.getByRole("group", { name: "Live feed subpages for page 102" });
+    expect(within(liveSubpages).getAllByRole("button").length).toBeGreaterThan(1);
+    expect(screen.getByRole("button", { name: "Play live carousel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Play live carousel" }));
+    expect(screen.getByRole("button", { name: "Pause live carousel" })).toBeInTheDocument();
+
+    fireEvent.click(within(liveSubpages).getByRole("button", { name: "Live subpage 0002" }));
+
+    expect(screen.getByText(/generated 2\/\d+/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play live carousel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit template" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("automatically refreshes a due interval source while Studio is open", async () => {
+    const project = createPixelcastPocProject();
+    const news = project.contentSources.find((source) => source.id === "source-news")!;
+    news.refreshPolicy = { mode: "interval", intervalSeconds: 60, retryCount: 1 };
+    project.contentSources
+      .filter((source) => source.id !== news.id)
+      .forEach((source) => {
+        source.refreshPolicy = { mode: "manual", retryCount: 1 };
+      });
+    project.contentSnapshots = [];
+    window.localStorage.setItem("pixelcast.currentProject", exportNativeProject(project));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        payload: JSON.stringify([{
+          id: "automatic-story",
+          title: "Automatic story",
+          body: "This arrived through the Studio interval scheduler."
+        }]),
+        contentType: "application/json",
+        finalUrl: "https://example.test/news.json",
+        fetchedAt: "2026-07-22T02:00:00.000Z"
+      })
+    } as Response);
+
+    render(<App />);
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByText(`Automatically refreshed ${news.label}`))
+      .toBeInTheDocument());
+    expect(window.localStorage.getItem("pixelcast.currentProject")).toContain("Automatic story");
   });
 
   it("downloads native project and TTI exports", () => {

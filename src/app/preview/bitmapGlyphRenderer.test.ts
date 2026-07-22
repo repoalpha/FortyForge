@@ -163,7 +163,63 @@ describe("bitmap glyph renderer", () => {
     ]);
   });
 
-  it("draws contiguous teletext mosaics as full-height 2 by 3 blocks", () => {
+  it("uses Bedstead bitmaps across ordinary page text", () => {
+    for (const character of ["B", "e", "d", "s", "t", "0"]) {
+      const classic = getBitmapGlyph(character, "saa5050-classic");
+      const bedstead = getBitmapGlyph(character, "bedstead-extended");
+
+      expect(bedstead, character).toHaveLength(20);
+      expect(bedstead.every((row) => row.length === 12), character).toBe(true);
+      expect(bedstead, character).not.toEqual(classic);
+    }
+  });
+
+  it("uses complete fixed-size Philips-later bitmaps", () => {
+    for (let byte = 0x20; byte <= 0x7e; byte += 1) {
+      const character = byte === 0x23 ? "£" : String.fromCharCode(byte);
+      const glyph = getBitmapGlyph(character, "tdatext-later");
+
+      expect(glyph, character).toHaveLength(20);
+      expect(glyph.every((row) => row.length === 12), character).toBe(true);
+    }
+
+    expect(getBitmapGlyph("A", "tdatext-later"))
+      .not.toEqual(getBitmapGlyph("A", "saa5050-classic"));
+  });
+
+  it("uses complete fixed-size ETS 1990s bitmaps", () => {
+    for (let byte = 0x20; byte <= 0x7e; byte += 1) {
+      const glyph = getBitmapGlyph(String.fromCharCode(byte), "ets-1990s");
+
+      expect(glyph, String.fromCharCode(byte)).toHaveLength(20);
+      expect(glyph.every((row) => row.length === 12), String.fromCharCode(byte)).toBe(true);
+    }
+
+    expect(getBitmapGlyph("A", "ets-1990s")).toEqual([
+      "000000000000",
+      "000000000000",
+      "000011110000",
+      "000011110000",
+      "000110011000",
+      "000110011000",
+      "001100001100",
+      "001100001100",
+      "011000000110",
+      "011000000110",
+      "011111111110",
+      "011111111110",
+      "011000000110",
+      "011000000110",
+      "011000000110",
+      "011000000110",
+      "000000000000",
+      "000000000000",
+      "000000000000",
+      "000000000000"
+    ]);
+  });
+
+  it("draws contiguous teletext mosaics without horizontal seam artifacts", () => {
     const context = new RecordingContext();
 
     drawMosaicGlyph(context, {
