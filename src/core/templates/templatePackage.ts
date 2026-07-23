@@ -2,6 +2,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 
 import type { Template, TemplatePackageManifest } from "../model/types";
 import { projectSchema } from "../model/schema";
+import { normalizeMosaicTransmissionRows } from "../model/normalizeMosaicTransmission";
 
 function templateContentHash(template: Template) {
   const bytes = strToU8(JSON.stringify(template));
@@ -71,5 +72,6 @@ export function importTemplatePackage(bytes: Uint8Array): Template {
   if (!base || base.length !== 1000 || !base.every((byte, index) => byte === baseRowBytes(parsed)[index])) {
     throw new Error("Template package base page does not match layout");
   }
+  normalizeMosaicTransmissionRows(parsed.rows);
   return parsed;
 }

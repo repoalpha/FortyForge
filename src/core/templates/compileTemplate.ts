@@ -1,5 +1,7 @@
 import { level1ByteForG0Character, normalizeTextForLevel1 } from "../standards/g0Charset";
 import { displaySubpageSubcode, MAX_DISPLAY_SUBPAGES } from "../standards/subpages";
+import { getControlCodeByByte } from "../standards/controlCodes";
+import { normalizeMosaicTransmissionRows } from "../model/normalizeMosaicTransmission";
 import type {
   Cell,
   CompiledPageSnapshot,
@@ -16,7 +18,9 @@ import type {
 import { getBuiltInTemplate } from "./builtInTemplates";
 
 function cloneRows(rows: TeletextRow[]) {
-  return structuredClone(rows) as TeletextRow[];
+  const cloned = structuredClone(rows) as TeletextRow[];
+  normalizeMosaicTransmissionRows(cloned);
+  return cloned;
 }
 
 function fieldValue(record: NormalizedContentRecord, field: string): string {
@@ -31,6 +35,14 @@ function applyTextCase(value: string, mode: ContentBinding["transform"]["textCas
     return value.toLowerCase().replace(/(^|\s)\S/g, (character) => character.toUpperCase());
   }
   return value;
+}
+
+function normalizedTextColour(colour: number) {
+  return Number.isInteger(colour) && colour >= 1 && colour <= 7 ? colour : 7;
+}
+
+function colourControlColumns(colour: number) {
+  return normalizedTextColour(colour) === 7 ? 0 : 1;
 }
 
 function wrapText(value: string, width: number): string[] {
@@ -104,7 +116,8 @@ function contentLines(
   region: TemplateRegion,
   attribution: string
 ) {
-  const width = region.bounds.endColumn - region.bounds.startColumn + 1;
+  const regionWidth = region.bounds.endColumn - region.bounds.startColumn + 1;
+  const width = Math.max(1, regionWidth - colourControlColumns(binding.transform.textColour));
   const lines = sortedRecords(records, binding).flatMap((record, index, selected) => [
     ...recordLines(record, binding, width),
     ...(index < selected.length - 1 ? [""] : [])
@@ -121,6 +134,17 @@ function contentLines(
 
 function blankCell(column: number): Cell {
   return { column, kind: "empty", byte: 0x20, annotations: [] };
+}
+
+function alphaColourControlCell(column: number, colour: number): Cell {
+  const controlCode = getControlCodeByByte(colour);
+  if (!controlCode) throw new Error(`Unknown Level 1 alpha colour ${colour}`);
+  return { column, kind: "control", byte: colour, controlCode, annotations: [] };
+}
+
+function isForegroundColourControl(cell: Cell | undefined) {
+  return cell?.kind === "control"
+    && ((cell.byte >= 0x00 && cell.byte <= 0x07) || (cell.byte >= 0x10 && cell.byte <= 0x17));
 }
 
 function textCell(column: number, character: string, region: TemplateRegion): Cell | undefined {
@@ -140,20 +164,57 @@ function writeRegion(
   rows: TeletextRow[],
   region: TemplateRegion,
   lines: string[],
+  textColour: number,
   pageId: string,
   diagnostics: TemplateCompileDiagnostic[]
 ) {
   const width = region.bounds.endColumn - region.bounds.startColumn + 1;
+  const colour = normalizedTextColour(textColour);
+  const controlColumns = colourControlColumns(colour);
+  const printableWidth = Math.max(0, width - controlColumns);
   const writable = region.writableColumns ? new Set(region.writableColumns) : undefined;
 
   for (let rowOffset = 0; rowOffset <= region.bounds.endRow - region.bounds.startRow; rowOffset += 1) {
     const row = rows[region.bounds.startRow + rowOffset];
-    const source = (lines[rowOffset] ?? "").padEnd(width, " ").slice(0, width);
-    for (let columnOffset = 0; columnOffset < width; columnOffset += 1) {
+    const source = (lines[rowOffset] ?? "").padEnd(printableWidth, " ").slice(0, printableWidth);
+
+    if (controlColumns > 0) {
+      const controlColumn = region.bounds.startColumn;
+      const existingCell = row.cells[controlColumn];
+      if (writable && !writable.has(controlColumn)) {
+        diagnostics.push({
+          severity: "error",
+          code: "colour-control-outside-slot",
+          message: `Region ${region.label} does not expose its leading cell for the selected text colour.`,
+          pageId,
+          regionId: region.id
+        });
+      } else if (
+        region.lockedControlCodes
+        && existingCell?.kind === "control"
+        && !isForegroundColourControl(existingCell)
+      ) {
+        diagnostics.push({
+          severity: "error",
+          code: "locked-colour-control",
+          message: `Region ${region.label} has a locked non-colour control in the cell needed for the selected text colour.`,
+          pageId,
+          regionId: region.id
+        });
+      } else {
+        row.cells[controlColumn] = alphaColourControlCell(controlColumn, colour);
+      }
+    }
+
+    for (let columnOffset = controlColumns; columnOffset < width; columnOffset += 1) {
       const column = region.bounds.startColumn + columnOffset;
       if (writable && !writable.has(column)) continue;
-      if (region.lockedControlCodes && row.cells[column]?.kind === "control") continue;
-      const cell = textCell(column, source[columnOffset], region);
+      if (
+        region.lockedControlCodes
+        && row.cells[column]?.kind === "control"
+        && !isForegroundColourControl(row.cells[column])
+      ) continue;
+      const cell = textCell(column, source[columnOffset - controlColumns], region);
       if (!cell) {
         diagnostics.push({
           severity: "error",
@@ -279,7 +340,14 @@ export function compilePageContent(project: Project, page: Page): CompiledPageSn
       }
       if (item.snapshot) sourceTimestamps[item.source.id] = item.snapshot.capturedAt;
       if (item.source.policy.attributionRequired && item.source.policy.attributionText) attributions.add(item.source.policy.attributionText);
-      writeRegion(rows, item.region, item.chunks[Math.min(index, item.chunks.length - 1)] ?? [], page.id, diagnostics);
+      writeRegion(
+        rows,
+        item.region,
+        item.chunks[Math.min(index, item.chunks.length - 1)] ?? [],
+        item.binding.transform.textColour,
+        page.id,
+        diagnostics
+      );
     }
 
     writeContinuationFooter(rows, page.pageNumber, index + 1, pageCount);

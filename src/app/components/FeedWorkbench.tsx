@@ -16,6 +16,7 @@ import {
   type TeletextRow,
   type Template
 } from "../../core";
+import { LEVEL_1_CSS_COLOURS } from "../preview/teletextColours";
 
 const NASA_NEWS_FEED = "https://www.nasa.gov/news-release/feed/";
 const NASA_MEDIA_TERMS = "https://www.nasa.gov/nasa-brand-center/images-and-media/";
@@ -26,6 +27,15 @@ const DEFAULT_BOUNDS: CellRectangle = {
   startColumn: 1,
   endColumn: 39
 };
+const FEED_TEXT_COLOURS = [
+  { index: 7, label: "White" },
+  { index: 1, label: "Red" },
+  { index: 2, label: "Green" },
+  { index: 3, label: "Yellow" },
+  { index: 4, label: "Blue" },
+  { index: 5, label: "Magenta" },
+  { index: 6, label: "Cyan" }
+] as const;
 
 export interface FeedWorkspaceState {
   rows: TeletextRow[];
@@ -38,6 +48,9 @@ export interface FeedWorkspaceState {
   usedRows: number;
   capacityRows: number;
   unsupportedCharacterCount: number;
+  textColour: number;
+  controlColumns: number;
+  printableColumns: number;
   sourceLabel: string;
   protectedThroughRow?: number;
 }
@@ -69,7 +82,8 @@ interface FeedWorkbenchProps {
     templateRegionId: string,
     fields: string[],
     bounds: CellRectangle,
-    attributionGapRows: number
+    attributionGapRows: number,
+    textColour: number
   ) => void;
 }
 
@@ -102,6 +116,7 @@ interface DataWorkbenchDraft {
   protectArtwork: boolean;
   headerGapRows: number;
   attributionGapRows: number;
+  textColour: number;
   autoPlayCarousel: boolean;
   carouselDelaySeconds: number;
 }
@@ -169,6 +184,10 @@ export function FeedWorkbench({
   const initialBoundPageId = initialSource
     ? pages.find((candidatePage) => candidatePage.contentBindings.some((binding) => binding.sourceId === initialSource.id))?.id
     : undefined;
+  const initialBinding = initialSource
+    ? pages.flatMap((candidatePage) => candidatePage.contentBindings)
+      .find((binding) => binding.sourceId === initialSource.id)
+    : undefined;
   const restoredTargetPageId = initialDraft.targetPageId && pages.some((candidatePage) => candidatePage.id === initialDraft.targetPageId)
     ? initialDraft.targetPageId
     : initialBoundPageId ?? "";
@@ -206,6 +225,9 @@ export function FeedWorkbench({
   const [protectArtwork, setProtectArtwork] = useState(initialDraft.protectArtwork ?? true);
   const [headerGapRows, setHeaderGapRows] = useState(initialDraft.headerGapRows ?? 1);
   const [attributionGapRows, setAttributionGapRows] = useState(initialDraft.attributionGapRows ?? 1);
+  const [textColour, setTextColour] = useState(
+    useDraft ? initialDraft.textColour ?? initialBinding?.transform.textColour ?? 7 : initialBinding?.transform.textColour ?? 7
+  );
   const [autoPlayCarousel, setAutoPlayCarousel] = useState(initialDraft.autoPlayCarousel ?? true);
   const [carouselDelaySeconds, setCarouselDelaySeconds] = useState(initialDraft.carouselDelaySeconds ?? 8);
   const [previewOnCanvas, setPreviewOnCanvas] = useState(false);
@@ -245,6 +267,7 @@ export function FeedWorkbench({
       protectArtwork,
       headerGapRows,
       attributionGapRows,
+      textColour,
       autoPlayCarousel,
       carouselDelaySeconds
     };
@@ -275,6 +298,7 @@ export function FeedWorkbench({
     sourceLabel,
     staleMinutes,
     targetKey,
+    textColour,
     termsUrl,
     url
   ]);
@@ -306,6 +330,7 @@ export function FeedWorkbench({
       setRefreshMode("manual");
       setRefreshMinutes(5);
       setStaleMinutes(60);
+      setTextColour(7);
       setRecords([]);
       setStatus("Configure the new data source, then save or fetch it.");
       return;
@@ -316,6 +341,7 @@ export function FeedWorkbench({
     const boundPage = pages.find((candidatePage) =>
       candidatePage.contentBindings.some((binding) => binding.sourceId === source.id)
     );
+    const binding = boundPage?.contentBindings.find((candidate) => candidate.sourceId === source.id);
     selectTargetPage(boundPage?.id ?? "");
     const latest = latestSnapshotForSource(snapshots, source.id);
     setSnapshotIdentity(latest
@@ -332,6 +358,7 @@ export function FeedWorkbench({
     setRefreshMode(source.refreshPolicy.mode === "runtime" ? "interval" : source.refreshPolicy.mode);
     setRefreshMinutes(Math.max(1, Math.round((source.refreshPolicy.intervalSeconds ?? 300) / 60)));
     setStaleMinutes(Math.max(1, Math.round((source.refreshPolicy.staleAfterSeconds ?? 3600) / 60)));
+    setTextColour(binding?.transform.textColour ?? 7);
     setRecords(latest?.records ?? []);
     setStatus(latest
       ? `Restored ${latest.records.length} records captured ${new Date(latest.capturedAt).toLocaleString()}.`
@@ -391,11 +418,12 @@ export function FeedWorkbench({
           includeTitle,
           includeSummary,
           includeBody,
+          textColour,
           pageNumber: page.pageNumber,
           showPreviewHeader: previewBaseRows === undefined
         })
       : [],
-    [attribution, attributionGapRows, bounds, includeBody, includeSummary, includeTitle, page.pageNumber, previewBaseRows, selectedRecord]
+    [attribution, attributionGapRows, bounds, includeBody, includeSummary, includeTitle, page.pageNumber, previewBaseRows, selectedRecord, textColour]
   );
   const preview = previewPages[Math.min(previewPageIndex, Math.max(0, previewPages.length - 1))];
 
@@ -427,6 +455,12 @@ export function FeedWorkbench({
         usedRows: 0,
         capacityRows: bounds.endRow - bounds.startRow + 1,
         unsupportedCharacterCount: 0,
+        textColour,
+        controlColumns: textColour === 7 ? 0 : 1,
+        printableColumns: Math.max(
+          1,
+          bounds.endColumn - bounds.startColumn + 1 - (textColour === 7 ? 0 : 1)
+        ),
         sourceLabel: provider || "Feed",
         protectedThroughRow: protectedLayout.protectedThroughRow
       });
@@ -443,10 +477,13 @@ export function FeedWorkbench({
       usedRows: preview.usedRows,
       capacityRows: preview.capacityRows,
       unsupportedCharacterCount: preview.unsupportedCharacterCount,
+      textColour,
+      controlColumns: preview.controlColumns,
+      printableColumns: preview.printableColumns,
       sourceLabel: provider || "Feed",
       protectedThroughRow: protectedLayout.protectedThroughRow
     });
-  }, [bounds, onWorkspaceChange, orderedRecords.length, page.pageNumber, preview, previewBaseRows, previewOnCanvas, protectedLayout.protectedThroughRow, provider, recordIndex, selectedRecord]);
+  }, [bounds, onWorkspaceChange, orderedRecords.length, page.pageNumber, preview, previewBaseRows, previewOnCanvas, protectedLayout.protectedThroughRow, provider, recordIndex, selectedRecord, textColour]);
 
   useEffect(() => {
     setRecordIndex(0);
@@ -455,7 +492,7 @@ export function FeedWorkbench({
 
   useEffect(() => {
     setPreviewPageIndex(0);
-  }, [recordIndex, targetKey, includeTitle, includeSummary, includeBody, attributionGapRows, headerGapRows, protectArtwork]);
+  }, [recordIndex, targetKey, includeTitle, includeSummary, includeBody, attributionGapRows, headerGapRows, protectArtwork, textColour]);
 
   useEffect(() => {
     setWholePageReplacementApproved(false);
@@ -853,6 +890,34 @@ export function FeedWorkbench({
                 <option value={3}>3 blank rows</option>
               </select>
             </label>
+            <fieldset className="feed-text-colour-field">
+              <legend>Feed text colour</legend>
+              <div aria-label="Feed text colour" className="feed-text-colour-options" role="radiogroup">
+                {FEED_TEXT_COLOURS.map((colour) => (
+                  <button
+                    aria-checked={textColour === colour.index}
+                    className={textColour === colour.index ? "feed-text-colour-selected" : undefined}
+                    key={colour.index}
+                    onClick={() => setTextColour(colour.index)}
+                    role="radio"
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="feed-text-colour-swatch"
+                      style={{ background: LEVEL_1_CSS_COLOURS[colour.index] }}
+                    />
+                    {colour.label}
+                  </button>
+                ))}
+              </div>
+              <p className="section-note">
+                {textColour === 7
+                  ? "White is the row default, so all selected cells remain available for text."
+                  : `${FEED_TEXT_COLOURS.find((colour) => colour.index === textColour)?.label} inserts one transmitted control cell at the start of every feed row; text wraps within the remaining cells.`}
+                {" "}Existing foreground-colour controls inside the target are replaced; other locked controls remain protected.
+              </p>
+            </fieldset>
             {protectedLayout.protectedThroughRow !== undefined ? (
               <p className="feed-artwork-protection" role="status">
                 Mosaic artwork protected through row {protectedLayout.protectedThroughRow}; feed starts on row {bounds.startRow}.
@@ -876,6 +941,11 @@ export function FeedWorkbench({
                 <span>
                   {preview.usedRows}/{preview.capacityRows} rows used
                   {preview.unsupportedCharacterCount ? ` · ${preview.unsupportedCharacterCount} characters replaced` : " · Level 1 clean"}
+                </span>
+                <span>
+                  {textColour === 7
+                    ? `${preview.printableColumns} text cells per row · no colour-control cost`
+                    : `${preview.controlColumns} colour-control cell + ${preview.printableColumns} text cells per row`}
                 </span>
                 {preview.pageCount > 1 ? (
                   <span>
@@ -964,7 +1034,8 @@ export function FeedWorkbench({
                   selectedRegion.id,
                   fields,
                   bounds,
-                  attributionGapRows
+                  attributionGapRows,
+                  textColour
                 );
               }}
               type="button"

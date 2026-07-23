@@ -8,7 +8,8 @@ import {
   G3_LINE_CODES,
   g0CharacterForLevel1Byte,
   getControlCodeByByte,
-  level1ByteForG0Character
+  level1ByteForG0Character,
+  normalizeMosaicTransmissionRows
 } from "../../core";
 import { ENGINEERING_TEST_PAGE_BYTES } from "./fixtures/engineeringTestPage";
 import { drawMosaicGlyph, getBitmapGlyph } from "../preview/bitmapGlyphRenderer";
@@ -5754,6 +5755,7 @@ export function scanTeletextScreenshot(
   const rows = useKnownReferenceRecovery && recognisedEngineeringTestPattern(cells, grid)
     ? preservedEngineeringTestRows(reconstructed.rows)
     : reconstructed.rows;
+  normalizeMosaicTransmissionRows(rows);
   const warnings = reconstructed.warnings;
   const confidence = cells.reduce((sum, cell) => sum + cell.confidence, 0) / cells.length;
 

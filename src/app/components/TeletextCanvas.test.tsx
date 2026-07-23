@@ -10,6 +10,7 @@ import {
   isCoveredByDoubleHeightCell,
   level1RenderOptionsForPreview,
   mosaicMaskForRenderedCell,
+  mosaicSeparatedForPreview,
   sixelIndexFromCellPoint,
   TeletextCanvas
 } from "./TeletextCanvas";
@@ -41,6 +42,10 @@ describe("TeletextCanvas render helpers", () => {
   it("uses only transmitted Level 1 state in PIT strict preview", () => {
     expect(level1RenderOptionsForPreview("pit-strict")).toEqual({});
     expect(level1RenderOptionsForPreview("studio-large")).toEqual({
+      useCellBackgroundColours: true,
+      useMosaicCellColours: true
+    });
+    expect(level1RenderOptionsForPreview("receiver-smooth")).toEqual({
       useCellBackgroundColours: true,
       useMosaicCellColours: true
     });
@@ -124,9 +129,33 @@ describe("TeletextCanvas render helpers", () => {
     expect(emptyYellowOnBlue.foreground).toEqual({ palette: "level1", index: 3 });
   });
 
-  it("uses a wider framebuffer closer to the PIT studio preview", () => {
-    expect(FRAMEBUFFER_CELL_WIDTH * 40).toBeGreaterThan(480);
+  it("uses only transmitted separated-graphics state in PIT strict", () => {
+    const metadataSeparated = renderedCell({
+      mode: "graphics",
+      separatedGraphics: false,
+      source: {
+        annotations: [],
+        byte: 0x55,
+        column: 0,
+        kind: "mosaic",
+        mosaic: {
+          background: { palette: "level1", index: 0 },
+          foreground: { palette: "level1", index: 7 },
+          separated: true,
+          sixelMask: 0x15
+        }
+      },
+      visible: true
+    });
+
+    expect(mosaicSeparatedForPreview(metadataSeparated, "studio-large")).toBe(true);
+    expect(mosaicSeparatedForPreview(metadataSeparated, "pit-strict")).toBe(false);
+  });
+
+  it("uses canonical cell proportions in the editable framebuffer", () => {
+    expect(FRAMEBUFFER_CELL_WIDTH * 40).toBe(480);
     expect(FRAMEBUFFER_CELL_HEIGHT * 25).toBe(500);
+    expect(FRAMEBUFFER_CELL_WIDTH / FRAMEBUFFER_CELL_HEIGHT).toBe(0.6);
   });
 
   it("maps points inside a character cell to the correct 2 by 3 sixel index", () => {
@@ -191,9 +220,9 @@ describe("TeletextCanvas block selection", () => {
         bottom: 500,
         height: 500,
         left: 0,
-        right: 640,
+        right: 480,
         top: 0,
-        width: 640,
+        width: 480,
         x: 0,
         y: 0,
         toJSON: () => ({})

@@ -66,6 +66,7 @@ interface ToolDockProps {
   onBlockStamp: () => void;
   onControlSelect: (byte: number) => void;
   onHeaderClockModeChange: (mode: PageHeaderSettings["clockMode"]) => void;
+  onHeaderLocalDateChange: (showLocalDate: boolean) => void;
   onFeedWorkspaceChange: (workspace?: FeedWorkspaceState) => void;
   onFeedSourceSave: (source: ContentSource) => void;
   onFeedSourceSnapshotSave: (source: ContentSource, snapshot: ContentSnapshot) => void;
@@ -84,7 +85,8 @@ interface ToolDockProps {
     templateRegionId: string,
     fields: string[],
     bounds: CellRectangle,
-    attributionGapRows: number
+    attributionGapRows: number,
+    textColour: number
   ) => void;
   onMosaicPaint: (sixelMask: number) => void;
   onMosaicPaintModeChange: (mode: MosaicPaintMode) => void;
@@ -218,6 +220,7 @@ export function ToolDock({
   onBlockStamp,
   onControlSelect,
   onHeaderClockModeChange,
+  onHeaderLocalDateChange,
   onFeedWorkspaceChange,
   onFeedSourceSave,
   onFeedSourceSnapshotSave,
@@ -489,8 +492,8 @@ export function ToolDock({
           carouselPlaying={carouselPlaying}
           onBindingRemove={onFeedBindingRemove}
           onCarouselPlayingChange={onCarouselPlayingChange}
-          onBindToSlot={(source, snapshot, templateRegionId, fields, bounds, attributionGapRows) => {
-            onFeedBindToSlot(source, snapshot, templateRegionId, fields, bounds, attributionGapRows);
+          onBindToSlot={(source, snapshot, templateRegionId, fields, bounds, attributionGapRows, textColour) => {
+            onFeedBindToSlot(source, snapshot, templateRegionId, fields, bounds, attributionGapRows, textColour);
             setDockTab("tools");
             onToolChange("text");
           }}
@@ -1000,6 +1003,17 @@ export function ToolDock({
             Original row
           </button>
         </div>
+        <label className="header-date-toggle">
+          <input
+            checked={page.metadata.header.showLocalDate}
+            onChange={(event) => onHeaderLocalDateChange(event.target.checked)}
+            type="checkbox"
+          />
+          <span>
+            <strong>Live header date</strong>
+            <small>Insert the local date as Mon 3 Oct in row 0, columns 23-32.</small>
+          </span>
+        </label>
       </section>
 
       <section>

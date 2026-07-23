@@ -859,6 +859,38 @@ section + section {
   width: 16px;
 }
 
+.header-date-toggle {
+  align-items: start;
+  background: #101214;
+  border: 1px solid #344350;
+  border-radius: 6px;
+  color: #eef2f4;
+  cursor: pointer;
+  display: grid;
+  font-size: 12px;
+  gap: 9px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  margin-top: 10px;
+  padding: 9px 10px;
+}
+
+.header-date-toggle input {
+  accent-color: #f2d15c;
+  height: 16px;
+  margin: 1px 0 0;
+  width: 16px;
+}
+
+.header-date-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.header-date-toggle small {
+  color: #9eabb4;
+  line-height: 1.35;
+}
+
 .workspace {
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -969,6 +1001,10 @@ section + section {
   display: block;
   image-rendering: pixelated;
   width: 100%;
+}
+
+.teletext-framebuffer-receiver-smooth {
+  image-rendering: auto;
 }
 
 .teletext-framebuffer-pit-strict {
@@ -1184,6 +1220,57 @@ section + section {
   margin: 0;
   min-width: 0;
   padding: 11px;
+}
+
+.feed-text-colour-field {
+  border: 1px solid #2e3942;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  padding: 9px;
+}
+
+.feed-text-colour-field legend {
+  color: #c6d0d7;
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.feed-text-colour-options {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.feed-text-colour-options button {
+  align-items: center;
+  background: #101418;
+  border: 1px solid #3b4954;
+  border-radius: 5px;
+  color: #eef2f4;
+  cursor: pointer;
+  display: flex;
+  font-size: 11px;
+  gap: 7px;
+  padding: 6px 7px;
+}
+
+.feed-text-colour-options button.feed-text-colour-selected {
+  border-color: #f2d15c;
+  box-shadow: 0 0 0 1px #f2d15c inset;
+}
+
+.feed-text-colour-swatch {
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 2px;
+  flex: 0 0 14px;
+  height: 14px;
+}
+
+.feed-text-colour-field .section-note {
+  margin: 0;
 }
 
 .feed-layout-fields > label:has(input[type="checkbox"]),

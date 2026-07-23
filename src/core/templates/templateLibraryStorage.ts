@@ -1,4 +1,5 @@
 import { templateSchema } from "../model/schema";
+import { normalizeMosaicTransmissionRows } from "../model/normalizeMosaicTransmission";
 import type { Template } from "../model/types";
 
 interface StoredTemplateLibrary {
@@ -32,6 +33,10 @@ export function importTemplateLibrary(input: string): Template[] {
 
   return candidates.flatMap((candidate) => {
     const result = templateSchema.safeParse(candidate);
-    return result.success ? [result.data as Template] : [];
+    if (!result.success) return [];
+
+    const template = result.data as Template;
+    normalizeMosaicTransmissionRows(template.rows);
+    return [template];
   });
 }

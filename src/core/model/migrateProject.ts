@@ -47,10 +47,12 @@ export function migrateProject(input: unknown): unknown {
     service.schedule ??= { enabled: false, defaultDwellSeconds: 8, entries: [] };
     for (const page of service.pages ?? []) {
       page.metadata.receiverFontProfileId ??= "ets-1990s";
-      page.metadata.header ??= { clockMode: "original" };
+      page.metadata.header ??= { clockMode: "original", showLocalDate: false };
+      page.metadata.header.showLocalDate ??= false;
       page.contentBindings ??= [];
       for (const binding of page.contentBindings) {
         binding.policy ??= structuredClone(DEFAULT_BINDING_POLICY);
+        binding.transform.textColour ??= 7;
       }
     }
   }

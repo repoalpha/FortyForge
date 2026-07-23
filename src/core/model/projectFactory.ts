@@ -84,7 +84,8 @@ export function createDefaultProject(now = new Date("2026-06-20T00:00:00.000Z"))
               targetPresentationLevel: "1",
               receiverFontProfileId: "ets-1990s",
               header: {
-                clockMode: "local"
+                clockMode: "local",
+                showLocalDate: false
               }
             },
             links: []

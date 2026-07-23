@@ -25,21 +25,12 @@ describe("teletext viewport", () => {
     expect(hitTestTeletextViewport(viewport, 480, 500)).toBeUndefined();
   });
 
-  it("exposes separate Studio large and PIT strict preview profiles", () => {
+  it("keeps every preview on the canonical teletext cell proportions", () => {
     expect(getTeletextPreviewProfile("studio-large")).toEqual({
       id: "studio-large",
       label: "Studio large",
-      columns: 40,
-      rows: 25,
-      cellWidth: 16,
-      cellHeight: 20,
-      width: 640,
-      height: 500
-    });
-
-    expect(getTeletextPreviewProfile("pit-strict")).toEqual({
-      id: "pit-strict",
-      label: "PIT strict",
+      displayWidth: 640,
+      smoothing: "pixelated",
       columns: 40,
       rows: 25,
       cellWidth: 12,
@@ -47,5 +38,41 @@ describe("teletext viewport", () => {
       width: 480,
       height: 500
     });
+
+    expect(getTeletextPreviewProfile("receiver-smooth")).toEqual({
+      id: "receiver-smooth",
+      label: "Receiver smooth",
+      displayWidth: 640,
+      smoothing: "smooth",
+      columns: 40,
+      rows: 25,
+      cellWidth: 24,
+      cellHeight: 40,
+      width: 960,
+      height: 1000
+    });
+
+    expect(getTeletextPreviewProfile("pit-strict")).toEqual({
+      id: "pit-strict",
+      label: "PIT strict",
+      displayWidth: 480,
+      smoothing: "pixelated",
+      columns: 40,
+      rows: 25,
+      cellWidth: 12,
+      cellHeight: 20,
+      width: 480,
+      height: 500
+    });
+
+    for (const profileId of ["studio-large", "receiver-smooth", "pit-strict"] as const) {
+      const profile = getTeletextPreviewProfile(profileId);
+      expect(profile.cellWidth / profile.cellHeight).toBe(0.6);
+    }
+
+    expect(getTeletextPreviewProfile("receiver-smooth").cellWidth)
+      .toBe(getTeletextPreviewProfile("pit-strict").cellWidth * 2);
+    expect(getTeletextPreviewProfile("receiver-smooth").cellHeight)
+      .toBe(getTeletextPreviewProfile("pit-strict").cellHeight * 2);
   });
 });

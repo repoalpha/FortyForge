@@ -20,7 +20,6 @@ import {
 import { drawG3LineGlyph } from "../preview/g3LineRenderer";
 import { level1ColourToCss } from "../preview/teletextColours";
 import {
-  createTeletextViewport,
   getTeletextPreviewProfile,
   hitTestTeletextViewport
 } from "../preview/teletextViewport";
@@ -30,7 +29,7 @@ import type { G3LinePaintMode, MosaicPaintMode } from "./ToolDock";
 
 const COLUMN_COUNT = 40;
 const ROW_COUNT = 25;
-export const FRAMEBUFFER_CELL_WIDTH = 16;
+export const FRAMEBUFFER_CELL_WIDTH = 12;
 export const FRAMEBUFFER_CELL_HEIGHT = 20;
 export const PIT_STRICT_CELL_WIDTH = 12;
 export const PIT_STRICT_CELL_HEIGHT = 20;
@@ -137,6 +136,18 @@ export function mosaicMaskForRenderedCell(cell: RenderedLevel1Cell) {
   return undefined;
 }
 
+export function mosaicSeparatedForPreview(
+  cell: RenderedLevel1Cell,
+  profileId: TeletextPreviewProfileId
+) {
+  if (cell.heldMosaicSeparated !== undefined) return cell.heldMosaicSeparated;
+  if (profileId === "pit-strict") return cell.separatedGraphics;
+
+  return cell.source.kind === "mosaic"
+    ? Boolean(cell.source.mosaic?.separated || cell.separatedGraphics)
+    : cell.separatedGraphics;
+}
+
 export function sixelIndexFromCellPoint(
   x: number,
   y: number,
@@ -211,16 +222,7 @@ export function TeletextCanvas({
   const columns = Array.from({ length: COLUMN_COUNT }, (_, index) => index + 1);
   const rowLabels = Array.from({ length: ROW_COUNT }, (_, index) => index === 0 ? "X/0" : String(index));
   const viewport = useMemo(
-    () => {
-      const profile = getTeletextPreviewProfile(previewProfileId);
-
-      return createTeletextViewport({
-        columns: profile.columns,
-        rows: profile.rows,
-        cellWidth: profile.cellWidth,
-        cellHeight: profile.cellHeight
-      });
-    },
+    () => getTeletextPreviewProfile(previewProfileId),
     [previewProfileId]
   );
 
@@ -354,9 +356,7 @@ export function TeletextCanvas({
             cellHeight,
             cellWidth: viewport.cellWidth,
             colour: level1ColourToCss(cell.foreground),
-            separated: cell.heldMosaicSeparated ?? (cell.source.kind === "mosaic"
-              ? cell.source.mosaic?.separated || cell.separatedGraphics
-              : cell.separatedGraphics),
+            separated: mosaicSeparatedForPreview(cell, previewProfileId),
             sixelMask,
             x,
             y
@@ -537,7 +537,10 @@ export function TeletextCanvas({
 
   return (
     <div className="canvas-frame">
-      <div className="teletext-frame-grid">
+      <div
+        className="teletext-frame-grid"
+        style={{ maxWidth: `${viewport.displayWidth + 34}px` }}
+      >
         <div className="ruler-corner" aria-hidden="true" />
         <div className="column-ruler" data-testid="column-ruler" aria-hidden="true">
           {columns.map((column) => (
@@ -552,6 +555,7 @@ export function TeletextCanvas({
         <canvas
           aria-label="PIT framebuffer preview"
           className={`teletext-framebuffer teletext-framebuffer-${previewProfileId}`}
+          data-preview-smoothing={viewport.smoothing}
           height={viewport.height}
           onClick={(event) => {
             if (readOnly) return;

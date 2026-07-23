@@ -33,8 +33,10 @@ import {
   stampMosaicTextCommand,
   stampCellBlockCommand,
   setPageHeaderClockModeCommand,
+  setPageHeaderLocalDateCommand,
   setPageCarouselEnabledCommand,
   setCellCommand,
+  setMosaicForegroundCommand,
   upsertContentSourceCommand,
   upsertTemplateCommand,
   undo
@@ -274,6 +276,38 @@ describe("editor commands", () => {
     expect(rendered.cells[6]).toEqual(expect.objectContaining({
       mode: "text",
       foreground: white
+    }));
+  });
+
+  it("materializes a changed mosaic foreground in the transmitted row", () => {
+    const project = createDefaultProject();
+    const painted = applyEditorCommand(
+      project,
+      paintMosaicCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        5,
+        4,
+        0x15
+      )
+    );
+    const next = applyEditorCommand(
+      painted,
+      setMosaicForegroundCommand(
+        "service-default",
+        "page-100",
+        "page-100-subpage-0000",
+        5,
+        4,
+        { palette: "level1", index: 3 }
+      )
+    );
+    const row = next.services[0].pages[0].subpages[0].rows[5];
+
+    expect(renderLevel1Row(row).cells[4]).toEqual(expect.objectContaining({
+      mode: "graphics",
+      foreground: { palette: "level1", index: 3 }
     }));
   });
 
@@ -1416,6 +1450,19 @@ describe("editor commands", () => {
     expect(project.services[0].pages[0].metadata.header.clockMode).toBe("local");
   });
 
+  it("enables the live date independently of the header clock", () => {
+    const project = createDefaultProject();
+
+    const next = applyEditorCommand(
+      project,
+      setPageHeaderLocalDateCommand("service-default", "page-100", true)
+    );
+
+    expect(next.services[0].pages[0].metadata.header.showLocalDate).toBe(true);
+    expect(next.services[0].pages[0].metadata.header.clockMode).toBe("local");
+    expect(project.services[0].pages[0].metadata.header.showLocalDate).toBe(false);
+  });
+
   it("paints and erases an X/26 G3 line with a Level 1 horizontal fallback", () => {
     const project = createDefaultProject();
     const painted = applyEditorCommand(
@@ -1546,6 +1593,7 @@ describe("editor commands", () => {
         sort: "newest-first",
         textCase: "preserve",
         controlStyle: "region-default",
+        textColour: 7,
         overflowPolicy: "add-subpage"
       },
       policy: {

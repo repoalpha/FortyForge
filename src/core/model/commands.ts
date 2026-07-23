@@ -318,6 +318,15 @@ function writeControls(row: TeletextRow, startColumn: number, bytes: number[]) {
   });
 }
 
+function cellsMatchControls(row: TeletextRow, startColumn: number, bytes: number[]) {
+  return startColumn >= 0
+    && startColumn + bytes.length <= row.cells.length
+    && bytes.every((byte, offset) => {
+      const cell = row.cells[startColumn + offset];
+      return cell.kind === "control" && cell.byte === byte;
+    });
+}
+
 /**
  * Makes an editor-authored mosaic run reproducible by a Level 1 receiver.
  * Metadata colours are useful while drawing, but PIT only receives row bytes,
@@ -328,10 +337,10 @@ function synchronizeMosaicRunTransmission(
   startColumn: number,
   endColumn: number,
   desired: Pick<Level1TransmissionState, "background" | "foreground" | "separatedGraphics">,
-  options: { reclaimPrefix?: boolean } = {}
+  options: { reclaimPrefix?: boolean; replacePrefixControls?: boolean } = {}
 ) {
   if (startColumn < 0 || endColumn < startColumn || endColumn >= row.cells.length) {
-    return;
+    return false;
   }
 
   const originalStartState = transmissionStateAt(row, startColumn);
@@ -353,22 +362,45 @@ function synchronizeMosaicRunTransmission(
     && prefixStart + prefixBytes.length <= row.cells.length
     && row.cells.slice(prefixStart, prefixStart + prefixBytes.length)
       .every((cell) => cell.kind !== "control" && cell.annotations.length === 0);
+  const canReplacePrefixControls = options.replacePrefixControls
+    && prefixStart >= 0
+    && prefixStart + prefixBytes.length <= row.cells.length
+    && row.cells.slice(prefixStart, prefixStart + prefixBytes.length)
+      .every((cell) => cell.kind === "control" && cell.annotations.length === 0);
 
-  if (!cellsCanBecomeControls(row, prefixStart, prefixBytes) && !canReclaimPrefix) {
-    return;
+  if (
+    !cellsCanBecomeControls(row, prefixStart, prefixBytes)
+    && !canReclaimPrefix
+    && !canReplacePrefixControls
+  ) {
+    return false;
+  }
+
+  const suffixStart = endColumn + 1;
+  const suffixStartsWithAuthoredControl = row.cells[suffixStart]?.kind === "control";
+  const suffixBytes = originalFollowingState && !suffixStartsWithAuthoredControl
+    ? controlBytesForTransmissionState(desiredState, originalFollowingState)
+    : [];
+  const suffixAlreadyPresent = cellsMatchControls(row, suffixStart, suffixBytes);
+  const canWriteSuffix = cellsCanBecomeControls(row, suffixStart, suffixBytes);
+
+  if (suffixBytes.length > 0 && !suffixAlreadyPresent && !canWriteSuffix) {
+    return false;
   }
 
   writeControls(row, prefixStart, prefixBytes);
 
   if (!originalFollowingState) {
-    return;
+    return true;
   }
 
-  const suffixBytes = controlBytesForTransmissionState(desiredState, originalFollowingState);
-
-  if (cellsCanBecomeControls(row, endColumn + 1, suffixBytes)) {
-    writeControls(row, endColumn + 1, suffixBytes);
+  if (!suffixAlreadyPresent && canWriteSuffix) {
+    writeControls(row, suffixStart, suffixBytes);
   }
+
+  return suffixBytes.length === 0
+    || suffixAlreadyPresent
+    || cellsMatchControls(row, suffixStart, suffixBytes);
 }
 
 function isTextColourControl(byte: number) {
@@ -622,8 +654,29 @@ export function paintCellBackgroundCommand(
         background: {
           palette: "level1",
           index: colourIndex
-        }
+        },
+        ...(row.cells[column].kind === "mosaic" && row.cells[column].mosaic
+          ? {
+              mosaic: {
+                ...row.cells[column].mosaic,
+                background: { palette: "level1", index: colourIndex } as TeletextColourRef
+              }
+            }
+          : {})
       };
+
+      const painted = row.cells[column];
+      if (
+        painted.kind === "mosaic"
+        && painted.mosaic?.foreground.palette === "level1"
+        && painted.mosaic.background.palette === "level1"
+      ) {
+        synchronizeMosaicRunTransmission(row, column, column, {
+          background: painted.mosaic.background.index,
+          foreground: painted.mosaic.foreground.index,
+          separatedGraphics: painted.mosaic.separated
+        });
+      }
 
       return next;
     }
@@ -860,6 +913,18 @@ export function setMosaicForegroundCommand(
           foreground
         }
       };
+
+      const updated = row.cells[column].mosaic;
+      if (
+        updated?.foreground.palette === "level1"
+        && updated.background.palette === "level1"
+      ) {
+        synchronizeMosaicRunTransmission(row, column, column, {
+          background: updated.background.index,
+          foreground: updated.foreground.index,
+          separatedGraphics: updated.separated
+        }, { replacePrefixControls: true });
+      }
 
       return next;
     }
@@ -1349,7 +1414,7 @@ export function addPageCommand(serviceId: string, pageNumber: string): EditorCom
           publicationState: "draft",
           targetPresentationLevel: service.defaultPresentationLevel,
           receiverFontProfileId: "ets-1990s",
-          header: { clockMode: "local" }
+          header: { clockMode: "local", showLocalDate: false }
         },
         links: []
       });
@@ -1654,6 +1719,33 @@ export function setPageHeaderClockModeCommand(
       page.metadata.header = {
         ...page.metadata.header,
         clockMode
+      };
+
+      return next;
+    }
+  };
+}
+
+export function setPageHeaderLocalDateCommand(
+  serviceId: string,
+  pageId: string,
+  showLocalDate: boolean
+): EditorCommand {
+  return {
+    id: "set-page-header-local-date",
+    label: "Set X/0 live date",
+    apply: (project) => {
+      const next = cloneProject(project);
+      const service = next.services.find((item) => item.id === serviceId);
+      const page = service?.pages.find((item) => item.id === pageId);
+
+      if (!page) {
+        return project;
+      }
+
+      page.metadata.header = {
+        ...page.metadata.header,
+        showLocalDate
       };
 
       return next;

@@ -8,6 +8,7 @@ export interface BroadcastPageEntry {
   sha256: string;
   byteLength: 1000;
   clockMode: "original" | "local" | "none";
+  showLocalDate: boolean;
   dwellSeconds: number;
   repeatWeight: number;
   priority: "normal" | "high" | "emergency";

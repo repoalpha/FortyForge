@@ -79,6 +79,7 @@ import {
   setPageCarouselEnabledCommand,
   setMosaicForegroundCommand,
   setPageHeaderClockModeCommand,
+  setPageHeaderLocalDateCommand,
   stampCellBlockCommand,
   stampMosaicTextCommand,
   storeContentSnapshotCommand,
@@ -911,7 +912,8 @@ export function App() {
     templateRegionId: string,
     fields: string[],
     bounds: CellRectangle,
-    attributionGapRows: number
+    attributionGapRows: number,
+    textColour: number
   ) {
     const template = editor.templates.find((item) => item.id === editor.page.metadata.templateId);
     const region = template?.regions.find((item) => item.id === templateRegionId);
@@ -936,6 +938,7 @@ export function App() {
         sort: "newest-first",
         textCase: "preserve",
         controlStyle: "region-default",
+        textColour,
         overflowPolicy: region.overflowPolicy,
         attributionGapRows
       },
@@ -1514,6 +1517,15 @@ export function App() {
     );
   }
 
+  function commitHeaderLocalDate(showLocalDate: boolean) {
+    setHistory((currentHistory) =>
+      commitEditorHistory(
+        currentHistory,
+        setPageHeaderLocalDateCommand(editor.service.id, editor.page.id, showLocalDate)
+      )
+    );
+  }
+
   function commitReceiverFontProfile(profileId: TeletextFontProfileId) {
     setReceiverFontProfileId(profileId);
 
@@ -1971,6 +1983,14 @@ export function App() {
                 Studio large
               </button>
               <button
+                aria-pressed={previewProfileId === "receiver-smooth"}
+                onClick={() => setPreviewProfileId("receiver-smooth")}
+                title="Supersampled receiver-style preview; page bytes remain unchanged."
+                type="button"
+              >
+                Receiver smooth
+              </button>
+              <button
                 aria-pressed={previewProfileId === "pit-strict"}
                 onClick={() => setPreviewProfileId("pit-strict")}
                 type="button"
@@ -2231,6 +2251,7 @@ export function App() {
         onBlockStamp={() => commitBlockStamp()}
         onControlSelect={commitControlCode}
         onHeaderClockModeChange={commitHeaderClockMode}
+        onHeaderLocalDateChange={commitHeaderLocalDate}
         onFeedWorkspaceChange={setFeedWorkspace}
         onFeedSourceSave={saveFeedSource}
         onFeedSourceSnapshotSave={saveFeedSourceSnapshot}

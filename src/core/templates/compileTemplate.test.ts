@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { createPixelcastPocProject } from "../model/pocProjectFactory";
 import { refreshProjectSources } from "../content/refreshSources";
+import { getControlCodeByByte } from "../standards/controlCodes";
+import { getBuiltInTemplate } from "./builtInTemplates";
 import { compileProjectContent } from "./compileTemplate";
 
 describe("template content compiler", () => {
@@ -38,5 +40,44 @@ describe("template content compiler", () => {
     expect(news?.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "source-rights-unapproved", severity: "error" })
     ]));
+  });
+
+  it("transmits a selected feed colour at the start of every generated row", () => {
+    const project = createPixelcastPocProject();
+    const newsPage = project.services[0].pages.find((page) => page.pageNumber === "102")!;
+    newsPage.contentBindings[0].transform.textColour = 3;
+    const template = structuredClone(getBuiltInTemplate("article-page")!);
+    const region = template.regions.find((candidate) => candidate.id === "main-content")!;
+    region.lockedControlCodes = true;
+    template.rows[2].cells[0] = {
+      column: 0,
+      kind: "control",
+      byte: 0x04,
+      controlCode: getControlCodeByByte(0x04),
+      annotations: []
+    };
+    template.rows[2].cells[5] = {
+      column: 5,
+      kind: "control",
+      byte: 0x01,
+      controlCode: getControlCodeByByte(0x01),
+      annotations: []
+    };
+    project.templates.push(template);
+    project.contentSnapshots.push({
+      id: "news-colour-snapshot",
+      sourceId: "source-news",
+      capturedAt: "2026-07-22T01:00:00.000Z",
+      status: "ok",
+      records: [{ id: "colour-story", title: "Colour test headline", fields: {} }]
+    });
+
+    const compiled = compileProjectContent(project).find((snapshot) => snapshot.pageNumber === "102")!;
+
+    expect(compiled.rows[2].cells[0]).toEqual(expect.objectContaining({ kind: "control", byte: 0x03 }));
+    expect(compiled.rows[2].cells[1]).toEqual(expect.objectContaining({ kind: "character", byte: 0x43 }));
+    expect(compiled.rows[2].cells[5].kind).not.toBe("control");
+    expect(compiled.rows[3].cells[0]).toEqual(expect.objectContaining({ kind: "control", byte: 0x03 }));
+    expect(compiled.diagnostics).toEqual([]);
   });
 });

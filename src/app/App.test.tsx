@@ -146,9 +146,9 @@ function setCanvasBounds(canvas: HTMLElement) {
       bottom: 500,
       height: 500,
       left: 0,
-      right: 640,
+      right: 480,
       top: 0,
-      width: 640,
+      width: 480,
       x: 0,
       y: 0,
       toJSON: () => ({})
@@ -2033,6 +2033,19 @@ describe("App", () => {
     );
   });
 
+  it("toggles the live local date on row zero", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Page" }));
+    const liveDate = screen.getByRole("checkbox", { name: /Live header date/ });
+    expect(liveDate).not.toBeChecked();
+
+    fireEvent.click(liveDate);
+
+    expect(liveDate).toBeChecked();
+    expect(screen.getByText(/Mon 3 Oct in row 0, columns 23-32/)).toBeInTheDocument();
+  });
+
   it("saves and reloads the current project locally", () => {
     const { unmount } = render(<App />);
     const grid = screen.getByRole("grid", { name: "40 by 25 teletext grid" });
@@ -2281,7 +2294,7 @@ describe("App", () => {
     expect(screen.getByText("Clean output mode for a second display or live monitor.")).toBeInTheDocument();
   });
 
-  it("switches between Studio large and PIT strict framebuffer profiles", () => {
+  it("switches presentation without changing page bytes or teletext proportions", () => {
     render(<App />);
 
     const canvas = screen.getByRole("img", { name: "PIT framebuffer preview" });
@@ -2290,8 +2303,23 @@ describe("App", () => {
       "aria-pressed",
       "true"
     );
-    expect(canvas).toHaveAttribute("width", "640");
+    expect(canvas).toHaveAttribute("width", "480");
     expect(canvas).toHaveAttribute("height", "500");
+    expect(canvas).toHaveClass("teletext-framebuffer-studio-large");
+    expect(canvas).toHaveAttribute("data-preview-smoothing", "pixelated");
+
+    fireEvent.click(screen.getByRole("button", { name: "Receiver smooth" }));
+
+    expect(screen.getByRole("button", { name: "Receiver smooth" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(canvas).toHaveAttribute("width", "960");
+    expect(canvas).toHaveAttribute("height", "1000");
+    expect(canvas).toHaveClass("teletext-framebuffer-receiver-smooth");
+    expect(canvas).toHaveAttribute("data-preview-smoothing", "smooth");
+    expect(screen.getByRole("gridcell", { name: "Row 0, column 1, byte 80" }))
+      .toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "PIT strict" }));
 
@@ -2304,8 +2332,9 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Studio large" }));
 
-    expect(canvas).toHaveAttribute("width", "640");
+    expect(canvas).toHaveAttribute("width", "480");
     expect(canvas).toHaveAttribute("height", "500");
+    expect(canvas).toHaveClass("teletext-framebuffer-studio-large");
   });
 
   it("keeps the preview on the bitmap renderer path", async () => {

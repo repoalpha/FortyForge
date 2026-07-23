@@ -125,6 +125,7 @@ export interface PageMetadata {
 
 export interface PageHeaderSettings {
   clockMode: "original" | "local" | "none";
+  showLocalDate: boolean;
 }
 
 export interface PageLink {
@@ -462,6 +463,8 @@ export interface ContentTransform {
   sort: "source" | "newest-first" | "oldest-first" | "priority";
   textCase: "preserve" | "upper" | "teletext-title";
   controlStyle: "plain" | "headline-colour" | "region-default";
+  /** Level 1 alpha colour byte. White (7) uses the row default and costs no cell. */
+  textColour: number;
   overflowPolicy: OverflowPolicy;
   attributionGapRows?: number;
 }

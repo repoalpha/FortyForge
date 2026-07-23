@@ -164,6 +164,7 @@ const bindingSchema = z.object({
     sort: z.enum(["source", "newest-first", "oldest-first", "priority"]),
     textCase: z.enum(["preserve", "upper", "teletext-title"]),
     controlStyle: z.enum(["plain", "headline-colour", "region-default"]),
+    textColour: z.number().int().min(1).max(7),
     overflowPolicy: overflowSchema,
     attributionGapRows: z.number().int().min(0).max(3).optional()
   }),
@@ -203,7 +204,10 @@ const pageSchema = z.object({
     templateId: z.string().optional(),
     targetPresentationLevel: presentationLevelSchema,
     receiverFontProfileId: z.enum(["ets-1990s", "saa5050-classic", "bedstead-extended", "tdatext-later"]),
-    header: z.object({ clockMode: z.enum(["original", "local", "none"]) })
+    header: z.object({
+      clockMode: z.enum(["original", "local", "none"]),
+      showLocalDate: z.boolean()
+    })
   }),
   links: z.array(z.object({ label: z.string(), pageNumber: z.string(), subcode: z.string().optional() }))
 });

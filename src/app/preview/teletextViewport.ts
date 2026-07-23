@@ -5,7 +5,7 @@ export interface TeletextViewportOptions {
   cellHeight: number;
 }
 
-export type TeletextPreviewProfileId = "studio-large" | "pit-strict";
+export type TeletextPreviewProfileId = "studio-large" | "receiver-smooth" | "pit-strict";
 
 export interface TeletextViewport extends TeletextViewportOptions {
   width: number;
@@ -13,8 +13,10 @@ export interface TeletextViewport extends TeletextViewportOptions {
 }
 
 export interface TeletextPreviewProfile extends TeletextViewport {
+  displayWidth: number;
   id: TeletextPreviewProfileId;
   label: string;
+  smoothing: "pixelated" | "smooth";
 }
 
 export interface TeletextViewportCell {
@@ -34,16 +36,32 @@ const PREVIEW_PROFILES: Record<TeletextPreviewProfileId, TeletextPreviewProfile>
   "studio-large": {
     id: "studio-large",
     label: "Studio large",
+    displayWidth: 640,
+    smoothing: "pixelated",
     ...createTeletextViewport({
       columns: 40,
       rows: 25,
-      cellWidth: 16,
+      cellWidth: 12,
       cellHeight: 20
+    })
+  },
+  "receiver-smooth": {
+    id: "receiver-smooth",
+    label: "Receiver smooth",
+    displayWidth: 640,
+    smoothing: "smooth",
+    ...createTeletextViewport({
+      columns: 40,
+      rows: 25,
+      cellWidth: 24,
+      cellHeight: 40
     })
   },
   "pit-strict": {
     id: "pit-strict",
     label: "PIT strict",
+    displayWidth: 480,
+    smoothing: "pixelated",
     ...createTeletextViewport({
       columns: 40,
       rows: 25,

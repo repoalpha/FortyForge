@@ -12,6 +12,7 @@ describe("Pixelcast Publisher broadcast bundle", () => {
           ? JSON.stringify({ current: { temperature_2m: 20, weather_code: 0 } })
           : JSON.stringify([{ id: "usd", title: "USD", currency: "USD", rate: 0.7, move: "0" }])
     }), new Date("2026-07-19T00:00:00.000Z"));
+    refreshed.project.services[0].pages[1].metadata.header.showLocalDate = true;
     const bundle = createBroadcastBundle(refreshed.project, { now: new Date("2026-07-19T00:05:00.000Z") });
 
     expect(bundle.manifest.format).toBe("pixelcast-broadcast");
@@ -21,7 +22,8 @@ describe("Pixelcast Publisher broadcast bundle", () => {
     expect(bundle.manifest.pages.every((page) => page.byteLength === 1000 && page.sha256.length === 64)).toBe(true);
     expect(bundle.manifest.pages.find((page) => page.pageNumber === "102")).toMatchObject({
       repeatWeight: 2,
-      priority: "high"
+      priority: "high",
+      showLocalDate: true
     });
   });
 });

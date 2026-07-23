@@ -4,6 +4,7 @@ import type {
   NormalizedContentRecord,
   TeletextRow
 } from "../model/types";
+import { getControlCodeByByte } from "../standards/controlCodes";
 import { level1ByteForG0Character, normalizeTextForLevel1 } from "../standards/g0Charset";
 
 export interface FeedPreviewOptions {
@@ -15,6 +16,7 @@ export interface FeedPreviewOptions {
   includeTitle: boolean;
   includeSummary: boolean;
   includeBody: boolean;
+  textColour?: number;
   pageNumber?: string;
   showPreviewHeader?: boolean;
 }
@@ -26,10 +28,22 @@ export interface FeedPreviewPage {
   usedRows: number;
   capacityRows: number;
   unsupportedCharacterCount: number;
+  controlColumns: number;
+  printableColumns: number;
 }
 
 function emptyCell(column: number): Cell {
   return { column, kind: "empty", byte: 0x20, annotations: [] };
+}
+
+function alphaColourControlCell(column: number, colour: number): Cell {
+  const controlCode = getControlCodeByByte(colour);
+  if (!controlCode) throw new Error(`Unknown Level 1 alpha colour ${colour}`);
+  return { column, kind: "control", byte: colour, controlCode, annotations: [] };
+}
+
+function normalizedTextColour(colour = 7) {
+  return Number.isInteger(colour) && colour >= 1 && colour <= 7 ? colour : 7;
 }
 
 function emptyRows(): TeletextRow[] {
@@ -150,12 +164,26 @@ export function wrapTeletextText(value: string, width: number): string[] {
   return lines;
 }
 
-function writeLine(rows: TeletextRow[], rowIndex: number, startColumn: number, width: number, value: string) {
+function writeLine(
+  rows: TeletextRow[],
+  rowIndex: number,
+  startColumn: number,
+  width: number,
+  value: string,
+  textColour = 7
+) {
   let unsupported = 0;
-  const line = value.padEnd(width, " ").slice(0, width);
+  const colour = normalizedTextColour(textColour);
+  const controlColumns = colour === 7 ? 0 : 1;
+  const printableWidth = Math.max(0, width - controlColumns);
+  const line = value.padEnd(printableWidth, " ").slice(0, printableWidth);
 
-  for (let offset = 0; offset < width; offset += 1) {
-    const column = startColumn + offset;
+  if (controlColumns > 0) {
+    rows[rowIndex].cells[startColumn] = alphaColourControlCell(startColumn, colour);
+  }
+
+  for (let offset = 0; offset < printableWidth; offset += 1) {
+    const column = startColumn + controlColumns + offset;
     const character = line[offset];
     const byte = level1ByteForG0Character(character);
     const unavailable = byte === undefined;
@@ -206,16 +234,19 @@ function recordCopy(record: NormalizedContentRecord, options: FeedPreviewOptions
 export function createFeedPreviewPages(options: FeedPreviewOptions): FeedPreviewPage[] {
   const bounds = normalizeBounds(options.bounds);
   const width = bounds.endColumn - bounds.startColumn + 1;
+  const textColour = normalizedTextColour(options.textColour);
+  const controlColumns = textColour === 7 ? 0 : 1;
+  const printableColumns = Math.max(1, width - controlColumns);
   const height = bounds.endRow - bounds.startRow + 1;
   const attributionLines = options.attribution.trim()
-    ? wrapTeletextText(options.attribution, width)
+    ? wrapTeletextText(options.attribution, printableColumns)
     : [];
   const attributionGapRows = attributionLines.length > 0
     ? Math.max(0, Math.min(3, options.attributionGapRows ?? 1))
     : 0;
   const attributionCost = attributionLines.length + attributionGapRows;
   const contentCapacity = Math.max(1, height - attributionCost);
-  const contentLines = wrapTeletextText(recordCopy(options.record, options), width);
+  const contentLines = wrapTeletextText(recordCopy(options.record, options), printableColumns);
   const pageCount = Math.max(1, Math.ceil(contentLines.length / contentCapacity));
 
   return Array.from({ length: pageCount }, (_, pageIndex) => {
@@ -237,7 +268,8 @@ export function createFeedPreviewPages(options: FeedPreviewOptions): FeedPreview
         bounds.startRow + index,
         bounds.startColumn,
         width,
-        line
+        line,
+        textColour
       );
     });
 
@@ -249,7 +281,8 @@ export function createFeedPreviewPages(options: FeedPreviewOptions): FeedPreview
           firstAttributionRow + index,
           bounds.startColumn,
           width,
-          line
+          line,
+          textColour
         );
       });
     }
@@ -260,7 +293,9 @@ export function createFeedPreviewPages(options: FeedPreviewOptions): FeedPreview
       pageCount,
       usedRows: chunk.length + attributionCost,
       capacityRows: height,
-      unsupportedCharacterCount
+      unsupportedCharacterCount,
+      controlColumns,
+      printableColumns
     };
   });
 }

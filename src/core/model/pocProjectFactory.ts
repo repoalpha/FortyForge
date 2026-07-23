@@ -21,6 +21,7 @@ function binding(
       sort: "source",
       textCase: "preserve",
       controlStyle: "region-default",
+      textColour: 7,
       overflowPolicy
     },
     policy: {
@@ -55,7 +56,7 @@ function pageFromTemplate(template: Template, pageNumber: string, title: string)
       templateId: template.id,
       targetPresentationLevel: "1",
       receiverFontProfileId: "ets-1990s",
-      header: { clockMode: "local" }
+      header: { clockMode: "local", showLocalDate: false }
     },
     links: []
   };

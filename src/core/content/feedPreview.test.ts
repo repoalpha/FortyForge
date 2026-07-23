@@ -5,6 +5,7 @@ import {
   protectLeadingMosaicArtwork,
   wrapTeletextText
 } from "./feedPreview";
+import { renderLevel1Row } from "../render/renderLevel1";
 
 const record = {
   id: "story-1",
@@ -40,6 +41,29 @@ describe("feed preview", () => {
     expect(pages.every((page) => page.rows.every((row) => row.cells.length === 40))).toBe(true);
     expect(pages[0].rows[10].cells.slice(1, 16).map((cell) => cell.character?.value ?? " ").join(""))
       .toBe("Source: Example");
+  });
+
+  it("reserves the leading cell for a non-white alpha colour and rewraps the text", () => {
+    const [page] = createFeedPreviewPages({
+      record: { ...record, title: "one two three", summary: undefined },
+      bounds: { startRow: 2, endRow: 5, startColumn: 1, endColumn: 8 },
+      attribution: "",
+      includeTitle: true,
+      includeSummary: false,
+      includeBody: false,
+      textColour: 3
+    });
+
+    expect(page.controlColumns).toBe(1);
+    expect(page.printableColumns).toBe(7);
+    expect(page.rows[2].cells[1]).toEqual(expect.objectContaining({ kind: "control", byte: 0x03 }));
+    expect(page.rows[2].cells.slice(2, 9).map((cell) => cell.character?.value ?? " ").join(""))
+      .toBe("one two");
+    expect(renderLevel1Row(page.rows[2]).cells[2].foreground)
+      .toEqual({ palette: "level1", index: 3 });
+    expect(page.rows[3].cells[1]).toEqual(expect.objectContaining({ kind: "control", byte: 0x03 }));
+    expect(page.rows[3].cells.slice(2, 9).map((cell) => cell.character?.value ?? " ").join("").trim())
+      .toBe("three");
   });
 
   it("maps characters unavailable in Level 1 to question marks", () => {

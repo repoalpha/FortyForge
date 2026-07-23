@@ -1,5 +1,6 @@
 import { projectSchema } from "../model/schema";
 import { migrateProject } from "../model/migrateProject";
+import { normalizeProjectMosaicTransmission } from "../model/normalizeMosaicTransmission";
 import type { Project } from "../model/types";
 
 function backfillReceiverFontProfile(project: Project): Project {
@@ -8,6 +9,8 @@ function backfillReceiverFontProfile(project: Project): Project {
       page.metadata.receiverFontProfileId ??= "ets-1990s";
     }
   }
+
+  normalizeProjectMosaicTransmission(project);
 
   return project;
 }

@@ -109,6 +109,8 @@ describe("FeedWorkbench story carousel", () => {
     expect(screen.getByRole("region", { name: "Story page result" }))
       .toHaveTextContent(/Result: \d+ selectable subpages/);
     expect(screen.getByText(/Placement adds subpages 0001–/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Yellow" }));
+    expect(screen.getByText(/inserts one transmitted control cell/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox", {
       name: /I have reviewed and approve this source/
@@ -142,6 +144,7 @@ describe("FeedWorkbench story carousel", () => {
     await waitFor(() => expect(onPlaceSnapshot).toHaveBeenCalledOnce());
     const frames = onPlaceSnapshot.mock.calls[0][2];
     expect(frames.length).toBeGreaterThan(1);
+    expect(frames[0][4].cells[1]).toEqual(expect.objectContaining({ kind: "control", byte: 0x03 }));
     expect(onPlaceSnapshot.mock.calls[0][3]).toBe(8);
     expect(onPlaceSnapshot.mock.calls[0][1].id)
       .toBe(onSourceSnapshotSave.mock.calls[0][1].id);

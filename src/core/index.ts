@@ -43,6 +43,7 @@ export {
   setPageCarouselEnabledCommand,
   setPageReceiverFontProfileCommand,
   setPageHeaderClockModeCommand,
+  setPageHeaderLocalDateCommand,
   setCellCommand,
   setMosaicForegroundCommand,
   stampCellBlockCommand,
@@ -81,8 +82,12 @@ export {
   createDevPixelcastAlphabet
 } from "./mosaicAlphabet/devPixelcastAlphabet";
 export { projectSchema } from "./model/schema";
+export {
+  normalizeMosaicTransmissionRows,
+  normalizeProjectMosaicTransmission
+} from "./model/normalizeMosaicTransmission";
 export { renderLevel1Row } from "./render/renderLevel1";
-export { composeExportRows, composePageHeaderRow } from "./render/pageHeader";
+export { composeExportRows, composePageHeaderRow, formatHeaderDate } from "./render/pageHeader";
 export { getControlCodeByByte, LEVEL_1_CONTROL_CODES } from "./standards/controlCodes";
 export { g0CharacterForLevel1Byte, level1ByteForG0Character, normalizeTextForLevel1 } from "./standards/g0Charset";
 export { isPresentationLevel, PRESENTATION_LEVELS } from "./standards/levels";

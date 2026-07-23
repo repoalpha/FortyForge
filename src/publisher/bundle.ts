@@ -78,6 +78,7 @@ export function createBroadcastBundle(
       sha256: sha256(rows),
       byteLength: 1000,
       clockMode: page.metadata.header.clockMode,
+      showLocalDate: page.metadata.header.showLocalDate,
       dwellSeconds: schedule?.dwellSeconds ?? page.subpages[0].carousel.delaySeconds ?? service.schedule.defaultDwellSeconds,
       repeatWeight: schedule?.repeatWeight ?? 1,
       priority: schedule?.priority ?? (page.subpages[0].carousel.priority === "high" ? "high" : "normal"),

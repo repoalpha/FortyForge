@@ -71,6 +71,10 @@ export function InspectorPanel({
             <dt>Clock source</dt>
             <dd>{clockSourceLabel}</dd>
           </div>
+          <div>
+            <dt>Date source</dt>
+            <dd>{page.metadata.header.showLocalDate ? "Local date" : "Original row"}</dd>
+          </div>
         </dl>
         <div className="segmented-control" aria-label="X/0 header clock source">
           <button
